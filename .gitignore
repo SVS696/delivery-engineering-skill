@@ -1,0 +1,13 @@
+.DS_Store
+._*
+__pycache__/
+*.py[cod]
+*.pdf
+*.fb2
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.svg
+

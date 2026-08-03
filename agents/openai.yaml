@@ -1,0 +1,5 @@
+interface:
+  display_name: "Delivery Engineering"
+  short_description: "BE/FE реализация и независимая проверка"
+  default_prompt: "Используй $delivery-engineering: выбери приватный профиль, зафиксируй case-state и стиль кодовой базы, выполни только разрешённые BE/FE lanes и отдай независимую проверку свежему tester-контексту."
+
