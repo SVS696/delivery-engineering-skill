@@ -4,6 +4,11 @@
 
 ```text
 <case-root>/
+  engineering-context.json
+  basis/
+    backend.md
+    frontend.md
+    test.md
   manifest.json
   status.md
   scope.md
@@ -24,6 +29,18 @@
 ```
 
 Создаются только нужные lane cards. Пустая FE/BE lane запрещена.
+
+До `init` case-root содержит только `engineering-context.json` и basis активных
+lanes, созданные `delivery_context.py materialize`. Новый manifest schema v2
+связывает общий fingerprint, route IDs и content hashes. `init` проверяет
+snapshot по текущим skill-native выжимкам; дальнейшая `validate` проверяет его
+неизменность относительно manifest. Ручное изменение basis или sidecar делает
+case невалидным. `--allow-unrecorded-engineering-context` существует только для
+явной миграции legacy case и не используется новым workflow.
+
+`delivery_case.py context --lane <lane>` возвращает точный allowed-input bundle
+с `engineering-context.json` и только `basis/<lane>.md`. Basis другой lane и
+история родительского диалога исключены.
 
 ## Состояния lanes
 
@@ -78,4 +95,3 @@ subject fingerprint. `not_required` требует причины.
 - `test-design`: test `designed`; implementation/verification gates явно
   `not_required`, остальные применимые gates закрыты.
 - `blocked`, `failed`, `partial`, `stale` никогда не округляются до `pass`.
-

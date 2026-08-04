@@ -24,8 +24,9 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
    паттерн; конфликт источников зафиксируй.
 5. **Разработка не равна проверке.** BE/FE self-check — evidence реализации;
    итоговый verification выполняет новый test-agent.
-6. **Состояние переживает контекст.** `manifest.json`, lane cards и reports —
-   handoff; история чата и самооценка агента не являются состоянием поставки.
+6. **Состояние переживает контекст.** `engineering-context.json`, отдельные
+   `basis/<lane>.md`, `manifest.json`, lane cards и reports — handoff; история
+   чата и самооценка агента не являются состоянием поставки.
 7. **Merge/deploy отдельно.** Локальный diff, commit/MR, merge, deploy/restart
    и post-deploy verification — разные гейты.
 
@@ -59,12 +60,6 @@ generic. Профиль дополняет, но не заменяет ближ�
 | `accept` | test | Проверка готовой реализации без разработки |
 | `test-design` | test | Test model без claims о реализации |
 
-```text
-python3 {baseDir}/scripts/delivery_case.py init --case-root "<path>" \
-  --case-id "<id>" --intent implement|accept|test-design \
-  --profile-id "<profile>" --lane test [--lane backend] [--lane frontend]
-```
-
 Не создавай отсутствующую lane «для комплекта».
 
 ## Роли
@@ -76,7 +71,8 @@ python3 {baseDir}/scripts/delivery_case.py init --case-root "<path>" \
 | `delivery-tester` | test-design, test-automation, verification, conformance | `{baseDir}/agents/contracts/tester.md` |
 
 - Передавай роли только утверждённый handoff, профиль, case card, target repo и
-  назначенный scope.
+  назначенный scope. Точный пакет получай через
+  `delivery_case.py context --case-root "<path>" --lane <lane>`.
 - BE и FE можно вести параллельно лишь при непересекающихся файлах и стабильном
   публичном контракте.
 - `verification` и `conformance` — свежие запуски. Авторский self-report служит
@@ -86,12 +82,26 @@ python3 {baseDir}/scripts/delivery_case.py init --case-root "<path>" \
 
 ## Маршрутизация инженерной базы
 
-Не загружай всю литературу в один контекст. Сначала выбери маршрут:
+Не загружай всю литературу в один контекст и не смешивай корпуса разных ролей.
+Выбери один основной маршрут на каждую активную lane; для BE/FE допустим второй,
+а для test — до двух дополнительных маршрутов реально проверяемых поверхностей:
 
 ```text
 python3 {baseDir}/scripts/delivery_context.py route --task "<задача>"
-python3 {baseDir}/scripts/delivery_context.py extract --route "<route-id>"
+python3 {baseDir}/scripts/delivery_context.py materialize \
+  --assign backend=backend-http --assign test=test-design \
+  --write "<case-root>"
+
+python3 {baseDir}/scripts/delivery_case.py init --case-root "<case-root>" \
+  --case-id "<id>" --intent implement|accept|test-design \
+  --profile-id "<profile>" --lane test [--lane backend] [--lane frontend]
 ```
+
+Повтори `--assign lane=route` не более двух раз для BE/FE и трёх для test,
+только для активных lanes. `materialize` создаёт `engineering-context.json` и изолированные
+`basis/backend.md`, `basis/frontend.md`, `basis/test.md`. `init` пересобирает их
+по текущим skill-native источникам, связывает fingerprint с manifest и
+отклоняет несовпадение lane или выжимки.
 
 Карта и версия источников находятся в
 `{baseDir}/references/knowledge-map.md` и
@@ -117,6 +127,8 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
 ## Критерии успеха
 
 - Выбран один профиль и только разрешённые lanes.
+- Для каждой lane инженерная база материализована, привязана к manifest и
+  автоматически входит в её role-context; basis другой lane исключён.
 - Scope связан с REQ/AC и конкретными worktree/file boundaries.
 - Чужие dirty changes сохранены и не попали в результат.
 - Для каждого изменённого контура есть style evidence из проекта.

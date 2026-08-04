@@ -21,12 +21,15 @@ failure.
 ## Вход
 
 - case manifest, profile и соответствующая lane card;
+- `engineering-context.json` и закреплённый `basis/test.md` с hash из manifest;
 - basis revision, REQ/AC, risks и test object;
 - target repository/environment и точный subject revision;
 - `conformance.md`, developer reports и allowed test-file scope;
 - required project commands и доступные evidence channels.
 
 Self-report автора — навигация к evidence, не доказательство результата.
+Если lane basis отсутствует или не связан с manifest, верни blocker. Не
+заменяй его общей памятью о тестировании и не читай basis BE/FE.
 
 ## Test-design
 
@@ -72,4 +75,3 @@ Self-report автора — навигация к evidence, не доказат
 Верни tester report по `references/delivery-handoff.md`: mode, basis/subject,
 coverage matrix, commands/actions, evidence, findings, residual risks, status и
 следующий gate. Не изменяй case-state сам: report применяет координатор.
-

@@ -16,6 +16,9 @@ open_decisions: []
 component_impact: [backend, frontend, data, integration, ui]
 allowed_actions: [local-edit, test]
 forbidden_actions: [merge, deploy, external-status]
+engineering_context:
+  fingerprint: immutable-hash
+  lane_basis: {backend: basis/backend.md, test: basis/test.md}
 ```
 
 Если ID отсутствуют, используй стабильные локальные IDs внутри case. Нельзя
@@ -30,6 +33,8 @@ forbidden_actions: [merge, deploy, external-status]
 - target root, baseline и allowed file scope;
 - зависимости и входные contracts;
 - выбранные literature rule IDs;
+- `engineering-context.json` и только собственный `basis/<lane>.md` с hash из
+  manifest;
 - project conformance sources;
 - required checks и report path;
 - явные запреты.
@@ -98,4 +103,3 @@ Tester не меняет product code в `verification`/`conformance`.
 Итог содержит source/result revisions, covered IDs, lane states, project gates,
 evidence, gaps, residual risks и next external gate. Термины `implemented`,
 `verified`, `committed`, `merged`, `deployed` используются раздельно.
-

@@ -1,7 +1,9 @@
 # Карта знаний Delivery Engineering
 
-Выбери один основной маршрут и загрузи только указанные sections. Общая
-литература не перекрывает профиль проекта.
+Выбери на каждую активную lane один основной маршрут. Для BE/FE допустим один
+дополнительный маршрут; для test — два, когда проверяются независимые BE/FE или
+security surfaces. Материализуй только указанные sections; общая литература не
+перекрывает профиль проекта.
 
 <!-- delivery-engineering:routes -->
 ```json
@@ -12,6 +14,7 @@
     {
       "id": "core-change",
       "when": "Любое изменение продукта",
+      "lanes": ["backend", "frontend", "test"],
       "signals": [],
       "distilled": [
         {"file": "references/native-engineering.md", "heading": "E01. Минимальный проверяемый change"},
@@ -21,6 +24,7 @@
     {
       "id": "codebase-conformance",
       "when": "Нужно соответствовать стилю, структуре и соглашениям существующей кодовой базы",
+      "lanes": ["backend", "frontend", "test"],
       "signals": ["стиль кодовой базы", "именование", "соглашения", "паттерн проекта", "project conformance"],
       "distilled": [
         {"file": "references/native-engineering.md", "heading": "E03. Иерархия локального канона"},
@@ -31,6 +35,7 @@
     {
       "id": "backend-http",
       "when": "Меняется HTTP API или backend-контракт",
+      "lanes": ["backend", "test"],
       "signals": ["backend", "api", "http", "endpoint", "rest", "status code"],
       "distilled": [
         {"file": "references/native-backend.md", "heading": "B01. Ресурс, метод и наблюдаемая семантика"},
@@ -41,6 +46,7 @@
     {
       "id": "frontend-behavior",
       "when": "Меняется UI, состояние экрана или пользовательский сценарий",
+      "lanes": ["frontend", "test"],
       "signals": ["frontend", "ui", "компонент", "экран", "браузер", "пользовательский сценарий"],
       "distilled": [
         {"file": "references/native-frontend.md", "heading": "F01. Наблюдаемое поведение вместо внутренностей"},
@@ -51,6 +57,7 @@
     {
       "id": "accessibility",
       "when": "Меняется доступность интерфейса или нужен WCAG-scope",
+      "lanes": ["frontend", "test"],
       "signals": ["accessibility", "wcag", "доступность", "клавиатура", "screen reader", "aria"],
       "distilled": [
         {"file": "references/native-frontend.md", "heading": "F04. Accessibility по применимым критериям"},
@@ -60,6 +67,7 @@
     {
       "id": "test-design",
       "when": "Нужно спроектировать, выполнить или завершить тестирование",
+      "lanes": ["test"],
       "signals": ["тест", "приемка", "verification", "test design", "coverage", "регресс"],
       "distilled": [
         {"file": "references/native-testing.md", "heading": "T01. Test basis и test conditions"},
@@ -72,6 +80,7 @@
     {
       "id": "risk-security",
       "when": "Изменение затрагивает trust boundary, auth, ввод, секреты или чувствительные данные",
+      "lanes": ["backend", "frontend", "test"],
       "signals": ["security", "безопасность", "auth", "авторизация", "инъекция", "секрет", "персональные данные"],
       "distilled": [
         {"file": "references/native-security.md", "heading": "S01. Риск определяет глубину"},
@@ -82,6 +91,7 @@
     {
       "id": "review-static-analysis",
       "when": "Нужны project checks, code review или статический анализ",
+      "lanes": ["backend", "frontend", "test"],
       "signals": ["code review", "static analysis", "lint", "formatter", "анализатор", "ревью кода"],
       "distilled": [
         {"file": "references/native-engineering.md", "heading": "E06. Независимое review"},
@@ -92,4 +102,3 @@
   ]
 }
 ```
-

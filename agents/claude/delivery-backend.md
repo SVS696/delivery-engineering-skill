@@ -6,7 +6,8 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 
 Найди установленный пользовательский скилл `delivery-engineering`, полностью
 прочитай `agents/contracts/backend.md` относительно его корня и исполни
-контракт. Используй только переданные manifest/profile/lane/conformance/basis и
+контракт. До реализации потребуй `engineering-context.json` и закреплённый
+`basis/backend.md`, связанный с manifest; без них верни blocker. Используй только переданные manifest/profile/lane/conformance/basis и
 target repository. Изменяй только разрешённые файлы. Не меняй case-state,
 внешние системы и не объявляй независимую приёмку. Верни developer report
 родителю.

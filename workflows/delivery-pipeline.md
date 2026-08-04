@@ -16,9 +16,12 @@
 **Вход:** утверждённый handoff либо источник с criteria.
 
 1. Проверь revision, scope, REQ/AC, decisions и component impact.
-2. Инициализируй case и только фактически нужные lanes.
-3. Запиши `scope.md`, `acceptance.md`, baseline и source refs.
-4. Если обязательный смысл отсутствует, верни spec gap; не додумывай контракт.
+2. Выбери один, максимум два маршрута инженерной базы для каждой BE/FE lane и
+   максимум три для test, затем выполни `delivery_context.py materialize`.
+3. Инициализируй case с тем же набором lanes; `init` обязан связать
+   `engineering-context.json` и hashes каждого `basis/<lane>.md` с manifest.
+4. Запиши `scope.md`, `acceptance.md`, baseline и source refs.
+5. Если обязательный смысл отсутствует, верни spec gap; не додумывай контракт.
 
 **Выход:** case продолжается без истории чата.
 
@@ -36,20 +39,22 @@
 
 ## Фаза 4. Slicing и test design
 
-**Вход:** scope, conformance и разрешённые lanes.
+**Вход:** scope, conformance, закреплённый lane basis и разрешённые lanes.
 
 1. Назначь lanes REQ/AC, worktree и непересекающиеся file boundaries.
 2. Зафиксируй BE ↔ FE зависимости и test prerequisites.
-3. Запусти tester `test-design` до claims о готовности; сохрани test matrix.
+3. Получи `context --lane test`, затем запусти tester `test-design` до claims о
+   готовности; сохрани test matrix.
 4. Не создавай BE/FE lane, если профиль запрещает её или влияние отсутствует.
 
 **Выход:** независимые lane cards и test model.
 
 ## Фаза 5. Implementation
 
-**Вход:** lane cards, conformance и test model.
+**Вход:** lane cards, conformance, закреплённый basis каждой lane и test model.
 
-1. Запусти разрешённые BE/FE-роли в свежих контекстах.
+1. Для каждой lane получи `delivery_case.py context --lane <lane>` и запусти
+   разрешённые BE/FE-роли в свежих контекстах.
 2. Параллель допустима только без общих файлов и при стабильном контракте.
 3. Каждая роль делает минимальный diff, следует conformance matrix, добавляет
    релевантные тесты и запускает project checks.
@@ -70,9 +75,11 @@
 
 ## Фаза 7. Independent verification
 
-**Вход:** basis, result revision, код/CI/стенд и developer reports.
+**Вход:** requirements basis, закреплённый `basis/test.md`, result revision,
+код/CI/стенд и developer reports.
 
-1. После готовности dev lanes запусти нового tester `verification`.
+1. После готовности dev lanes заново получи `context --lane test` и запусти
+   нового tester `verification`.
 2. Проверяй persisted/live result; preview, mergeability и HTTP 200 сами по себе
    недостаточны.
 3. Классифицируй defect/spec gap/environment blocker/coverage gap/baseline.
@@ -102,4 +109,3 @@
 3. Верни covered IDs, revisions, commands/evidence, gaps и точный next gate.
 
 **Выход:** фактическое состояние без смешения implementation и delivery.
-

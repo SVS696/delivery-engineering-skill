@@ -16,8 +16,10 @@ write boundary и возврат результата.
 
 ## P02. Явный пакет входа
 
-- Перечислены manifest/profile/basis/subject/target и обязательные revisions.
+- Перечислены manifest/profile/subject/target, `engineering-context.json`,
+  точный `basis/<lane>.md` и обязательные revisions/hashes.
 - История родительского рассуждения не расширяет scope.
+- Basis соседней lane не попадает в разрешённый пакет текущей роли.
 - Отсутствующий обязательный input даёт typed blocker, а не догадку.
 
 ## P03. Полномочия и stop conditions
@@ -68,4 +70,3 @@ Prompt нельзя считать улучшенным только по ощу
 Статический `prompt_audit.py` проверяет структуру. Поведенческие evals следует
 прогонять на целевых моделях при существенном изменении contracts; статический
 PASS их не заменяет.
-

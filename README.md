@@ -63,8 +63,9 @@ Capabilities перечисляются явно: `backend`, `frontend`, `test`.
 Не создавай MR и не деплой.
 ```
 
-Case-state хранит lane statuses, gates, revisions и fingerprints, поэтому
-работу можно продолжить в новых контекстах без пересказа чата.
+Case-state хранит lane statuses, gates, revisions, fingerprints и отдельную
+инженерную базу каждой роли, поэтому работу можно продолжить в новых контекстах
+без пересказа чата.
 
 ## Skill-native инженерная база
 
@@ -73,8 +74,19 @@ Case-state хранит lane statuses, gates, revisions и fingerprints, поэ�
 
 ```bash
 python3 scripts/delivery_context.py route --task "изменить HTTP API"
-python3 scripts/delivery_context.py extract --route backend-http
+python3 scripts/delivery_context.py materialize \
+  --assign backend=backend-http --assign test=test-design \
+  --write .delivery-engineering/cases/example
+
+python3 scripts/delivery_case.py init \
+  --case-root .delivery-engineering/cases/example --case-id example \
+  --intent implement --profile-id project --lane backend --lane test
 ```
+
+`materialize` создаёт общий sidecar `engineering-context.json` и отдельные
+`basis/<lane>.md`. `init` проверяет их по текущим выжимкам и привязывает hashes
+к manifest. Команда `delivery_case.py context --lane` выдаёт агенту только basis
+его lane; например, tester не получает HTTP-корпус backend.
 
 Реестр охватывает SWEBOK 4.0a, Software Engineering at Google, ISTQB CTFL
 4.0.1, публичный обзор ISO/IEC/IEEE 29119, RFC 9110, WCAG 2.2, Testing Library,

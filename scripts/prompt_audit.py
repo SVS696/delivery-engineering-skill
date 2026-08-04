@@ -41,6 +41,12 @@ def audit(skill_root: Path) -> dict[str, int]:
     contracts = sorted(contract_dir.glob("*.md"))
     codex_adapters = sorted(codex_dir.glob("*.toml"))
     claude_adapters = sorted(claude_dir.glob("*.md"))
+    lane_basis = {
+        "backend": "basis/backend.md",
+        "frontend": "basis/frontend.md",
+        "tester": "basis/test.md",
+    }
+    delivery_package = (root / "references" / "engineering-basis.md").is_file()
     if not contracts:
         errors.append("no role contracts")
 
@@ -60,6 +66,10 @@ def audit(skill_root: Path) -> dict[str, int]:
         for pattern in VAGUE_PATTERNS:
             if pattern in lowered:
                 errors.append(f"{relative}: vague unbounded instruction {pattern!r}")
+        if delivery_package and path.stem in lane_basis:
+            for required in ("engineering-context.json", lane_basis[path.stem]):
+                if required not in text:
+                    errors.append(f"{relative}: missing pinned lane basis {required}")
 
     references: Counter[str] = Counter()
     for path in codex_adapters:
@@ -95,6 +105,10 @@ def audit(skill_root: Path) -> dict[str, int]:
             errors.append(f"{relative}: multi-mode contract without explicit mode")
         if len(instructions) > 1400:
             errors.append(f"{relative}: adapter exceeds 1400 characters")
+        if delivery_package and contract in lane_basis:
+            for required in ("engineering-context.json", lane_basis[contract]):
+                if required not in instructions:
+                    errors.append(f"{relative}: missing pinned lane basis {required}")
 
     for path in claude_adapters:
         relative = path.relative_to(root)
@@ -126,6 +140,10 @@ def audit(skill_root: Path) -> dict[str, int]:
             errors.append(f"{relative}: multi-mode contract without explicit mode")
         if len(text) > 1600:
             errors.append(f"{relative}: adapter exceeds 1600 characters")
+        if delivery_package and contract in lane_basis:
+            for required in ("engineering-context.json", lane_basis[contract]):
+                if required not in text:
+                    errors.append(f"{relative}: missing pinned lane basis {required}")
 
     for contract in sorted(contract_names):
         if references[f"codex:{contract}"] != 1:
@@ -139,7 +157,7 @@ def audit(skill_root: Path) -> dict[str, int]:
         "contracts": len(contracts),
         "codex_adapters": len(codex_adapters),
         "claude_adapters": len(claude_adapters),
-        "checks": 9,
+        "checks": 10,
     }
 
 

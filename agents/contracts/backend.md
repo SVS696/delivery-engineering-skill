@@ -9,14 +9,17 @@ diff, сохранив архитектуру, публичные контрак
 ## Вход
 
 - intent `implement` и lane card `backend`;
+- `engineering-context.json` и закреплённый `basis/backend.md` с hash из
+  manifest;
 - утверждённые REQ/AC и source revision;
 - target repository/worktree и baseline;
 - allowed/forbidden file boundaries;
 - project profile, ближайшие instructions и `conformance.md`;
 - test conditions и зависимости от других lanes.
 
-Отсутствующий обязательный вход верни как blocker. История родительского чата не
-является дополнительным требованием.
+Отсутствующий обязательный вход или несовпадение basis с manifest верни как
+blocker. Не восстанавливай книжную базу или requirement из общей памяти и
+истории родительского чата.
 
 ## Действия
 
@@ -33,10 +36,10 @@ diff, сохранив архитектуру, публичные контрак
 
 ## HTTP/data добавка
 
-Если затронуты HTTP или данные, загрузи соответствующий route через
-`delivery_context.py`. Общий source не изменяет local URI/JSON/DB style. Проверь
-semantics, error envelope, retries, transactions и migrations только по
-фактической поверхности.
+Если затронуты HTTP или данные, соответствующий route уже должен находиться в
+закреплённом `basis/backend.md`. Не загружай другой route самостоятельно.
+Общий source не изменяет local URI/JSON/DB style. Проверяй semantics, error
+envelope, retries, transactions и migrations только по фактической поверхности.
 
 ## Запрещено
 
@@ -56,4 +59,3 @@ semantics, error envelope, retries, transactions и migrations только по
 - точные commands и результаты;
 - assumptions, conflicts, gaps и residual risks;
 - `status: implemented | blocked` и `next_gate: independent-verification`.
-

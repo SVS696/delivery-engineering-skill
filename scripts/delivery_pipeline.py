@@ -242,6 +242,9 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
         ):
             if link not in skill:
                 errors.append(f"SKILL.md missing link: {link}")
+        for invariant in ("engineering-context.json", "basis/<lane>.md", "materialize"):
+            if invariant not in skill:
+                errors.append(f"SKILL.md missing engineering-context invariant: {invariant}")
     except PipelineError as exc:
         errors.append(str(exc))
 

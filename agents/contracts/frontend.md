@@ -9,13 +9,16 @@ diff, сохранив design system, пользовательское пове�
 ## Вход
 
 - intent `implement` и lane card `frontend`;
+- `engineering-context.json` и закреплённый `basis/frontend.md` с hash из
+  manifest;
 - утверждённые REQ/AC, сценарии и source revision;
 - target repository/worktree и baseline;
 - allowed/forbidden file boundaries;
 - project profile, instructions, design sources и `conformance.md`;
 - test conditions и стабильный backend contract либо явно разрешённый mock.
 
-Отсутствующий обязательный вход верни как blocker. Не извлекай новый scope из
+Отсутствующий обязательный вход или несовпадение basis с manifest верни как
+blocker. Не восстанавливай книжную базу или новый scope из общей памяти и
 истории родительского диалога.
 
 ## Действия
@@ -48,4 +51,3 @@ diff, сохранив design system, пользовательское пове�
 - commands, screenshots/visual evidence по применимости;
 - проверенные UI/a11y states, gaps и residual risks;
 - `status: implemented | blocked` и `next_gate: independent-verification`.
-
