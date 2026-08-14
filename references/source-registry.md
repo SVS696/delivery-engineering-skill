@@ -87,6 +87,14 @@
       "url": "https://developers.openai.com/api/docs/guides/latest-model",
       "access": "official public documentation",
       "used": ["lean prompts", "autonomy boundaries", "success criteria", "eval-oriented iteration"]
+    },
+    {
+      "id": "PONYTAIL-2ED6C52",
+      "title": "Ponytail skill",
+      "version": "snapshot 2ed6c52",
+      "url": "https://github.com/DietrichGebert/ponytail/blob/2ed6c52c9d7e5e56942508591085fd45dea277d3/skills/ponytail/SKILL.md",
+      "access": "public GitHub source",
+      "used": ["ordered implementation ladder", "protected floor", "smallest runnable check", "conscious ceiling and revisit trigger"]
     }
   ]
 }

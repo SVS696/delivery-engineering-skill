@@ -58,10 +58,17 @@ Self-report автора — навигация к evidence, не доказат
 
 1. Построй матрицу затронутых surfaces к instructions/configs/analogs.
 2. Проверь module/naming/API/data/error/UI/test conventions и architecture gate.
-3. Автоматические checks используй для механических правил, inspection — для
+3. Сверь `root_owner` и `chosen_rung` с реальным потоком, callers и существующими
+   project/stdlib/native/dependency возможностями; новая сущность требует evidence.
+4. Проверь `protected_floor`: подтверждённое поведение, trust boundaries,
+   безопасность/данные, accessibility, совместимость, наблюдаемость и доказанная
+   extension seam не должны исчезнуть ради меньшего diff.
+5. Если указан `ceiling`, потребуй измеримый `revisit_trigger` и `upgrade_path`;
+   отсутствие обычного маркера у прямого кода не является finding.
+6. Автоматические checks используй для механических правил, inspection — для
    структуры и смысла.
-4. Не требуй личное предпочтение без project evidence.
-5. Конфликт канона с очевидным defect/security risk вынеси отдельным finding.
+7. Не требуй личное предпочтение без project evidence.
+8. Конфликт канона с очевидным defect/security risk вынеси отдельным finding.
 
 ## Запрещено
 

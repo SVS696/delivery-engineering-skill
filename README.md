@@ -13,6 +13,12 @@ Skill намеренно отделён от requirements engineering. Он со
 Backend/frontend доступны только через приватный профиль проекта и явный
 implementation scope. Generic profile включает только test capability.
 
+Реализация нативно проходит лестницу `не строить → reuse проекта → stdlib →
+native platform → принятая dependency → прямой код → минимальный новый
+механизм`. Роль исправляет корневого владельца причины, сохраняет protected
+floor безопасности, данных, accessibility, совместимости и доказанной
+расширяемости. Отдельный simplicity-reviewer для этого не создаётся.
+
 ## Project-first conformance
 
 Перед изменением роль изучает ближайшие инструкции, formatter/linter/compiler

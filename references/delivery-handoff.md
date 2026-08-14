@@ -65,6 +65,13 @@ style_evidence:
   - surface: naming
     sources: []
     applied: concise-decision
+simplicity:
+  root_owner: semantic-owner-path-or-symbol
+  chosen_rung: existing-behavior | existing-project | stdlib | native | dependency | direct | minimal-new
+  protected_floor: preserved | finding
+  ceiling: optional-known-limit
+  revisit_trigger: optional-measurable-event
+  upgrade_path: optional-next-mechanism
 checks:
   - command: exact-command
     cwd: repo-root
@@ -75,6 +82,9 @@ next_gate: independent-verification
 ```
 
 Автор не ставит `verified`.
+
+`ceiling`, `revisit_trigger` и `upgrade_path` появляются только вместе и только
+для сознательного компромисса. Обычная прямая реализация не создаёт debt-запись.
 
 ## Tester report
 

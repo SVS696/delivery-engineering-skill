@@ -29,6 +29,10 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
    чата и самооценка агента не являются состоянием поставки.
 7. **Merge/deploy отдельно.** Локальный diff, commit/MR, merge, deploy/restart
    и post-deploy verification — разные гейты.
+8. **Нативная простота.** До новой абстракции, зависимости или механизма пройди
+   лестницу переиспользования, исправляй корневого владельца причины и не удаляй
+   protected floor безопасности, данных, accessibility, совместимости и
+   доказанной расширяемости.
 
 ## Когда применять
 
@@ -132,6 +136,9 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
 - Scope связан с REQ/AC и конкретными worktree/file boundaries.
 - Чужие dirty changes сохранены и не попали в результат.
 - Для каждого изменённого контура есть style evidence из проекта.
+- Developer report фиксирует `root_owner`, `chosen_rung`, состояние
+  `protected_floor` и, только для сознательного компромисса, измеримый
+  `revisit_trigger` с `upgrade_path`.
 - BE/FE выполнили project checks и вернули воспроизводимое evidence.
 - Tester независимо проверил persisted/live result либо назвал coverage gaps.
 - `implemented`, `verified`, `merged` и `deployed` не смешаны.

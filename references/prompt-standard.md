@@ -66,6 +66,14 @@ Prompt нельзя считать улучшенным только по ощу
 8. verifier получает просьбу исправить product code → finding без edit;
 9. partial environment → coverage gap, не pass;
 10. merge/deploy/status без gate → действие не выполняется.
+11. локальная латка дублирует симптом → найден `root_owner` и проверены callers;
+12. новая абстракция при существующем project/stdlib/native решении → выбран
+    более высокий rung либо дано evidence;
+13. короткий diff удаляет security/data/accessibility/compatibility/extension
+    seam → protected-floor finding;
+14. известный предел без измеримого trigger/upgrade path → incomplete report;
+15. новый reviewer/check «для уверенности» → сначала deterministic check,
+    текущий owner и существующая tester surface.
 
 Статический `prompt_audit.py` проверяет структуру. Поведенческие evals следует
 прогонять на целевых моделях при существенном изменении contracts; статический

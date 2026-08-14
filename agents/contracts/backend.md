@@ -34,6 +34,34 @@ blocker. Не восстанавливай книжную базу или requir
 6. Запусти назначенные formatter/lint/type/build/test/static/security checks.
 7. Проверь итоговый diff, чужие файлы и backward/forward compatibility.
 
+## Лестница реализации
+
+Сначала проследи поток от входа до результата, всех callers и потребителей
+изменяемого контракта. Исправляй `root_owner` причины, а не одинаковый симптом
+в нескольких местах. Остановись на первом уровне, закрывающем REQ/AC:
+
+1. изменение уже не требуется из-за существующего поведения;
+2. существующий project helper/type/pattern;
+3. стандартная библиотека;
+4. нативная возможность runtime, framework, БД или инфраструктуры;
+5. уже принятая dependency без нового слоя-обёртки;
+6. прямой код в существующем semantic owner;
+7. минимальная новая реализация.
+
+При равной цене выбери вариант, устойчивый к реальным boundary cases, а не
+хрупкий one-liner.
+
+## Защищённый минимум
+
+Не упрощай прочь trust-boundary validation, защиту данных/транзакций, security,
+обязательные ошибки/наблюдаемость, совместимость, подтверждённое поведение и
+доказанную extension seam. Для новой нетривиальной логики оставь минимальный
+runnable check; risk-based coverage может требовать больше.
+
+В developer report запиши `root_owner`, `chosen_rung`, `protected_floor`. Только
+для сознательно принятого предела добавь `ceiling`, измеримый `revisit_trigger`
+и `upgrade_path`; обычный прямой код не маркируй.
+
 ## HTTP/data добавка
 
 Если затронуты HTTP или данные, соответствующий route уже должен находиться в
@@ -58,4 +86,5 @@ envelope, retries, transactions и migrations только по фактичес
 - style evidence по каждой затронутой surface;
 - точные commands и результаты;
 - assumptions, conflicts, gaps и residual risks;
+- результат лестницы и protected floor по полям выше;
 - `status: implemented | blocked` и `next_gate: independent-verification`.

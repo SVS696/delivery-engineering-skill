@@ -8,7 +8,7 @@ security surfaces. Материализуй только указанные sect
 <!-- delivery-engineering:routes -->
 ```json
 {
-  "version": 1,
+  "version": 2,
   "default_route": "core-change",
   "routes": [
     {
@@ -18,7 +18,9 @@ security surfaces. Материализуй только указанные sect
       "signals": [],
       "distilled": [
         {"file": "references/native-engineering.md", "heading": "E01. Минимальный проверяемый change"},
-        {"file": "references/native-engineering.md", "heading": "E02. Construction for verification"}
+        {"file": "references/native-engineering.md", "heading": "E02. Construction for verification"},
+        {"file": "references/native-engineering.md", "heading": "E09. Лестница реализации и корневой владелец"},
+        {"file": "references/native-engineering.md", "heading": "E10. Protected floor и сознательный предел"}
       ]
     },
     {

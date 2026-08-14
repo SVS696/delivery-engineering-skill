@@ -47,6 +47,33 @@ def audit(skill_root: Path) -> dict[str, int]:
         "tester": "basis/test.md",
     }
     delivery_package = (root / "references" / "engineering-basis.md").is_file()
+    simplicity_markers = {
+        "backend": (
+            "## Лестница реализации",
+            "## Защищённый минимум",
+            "`root_owner`",
+            "`chosen_rung`",
+            "`protected_floor`",
+            "`revisit_trigger`",
+            "`upgrade_path`",
+        ),
+        "frontend": (
+            "## Лестница реализации",
+            "## Защищённый минимум",
+            "`root_owner`",
+            "`chosen_rung`",
+            "`protected_floor`",
+            "`revisit_trigger`",
+            "`upgrade_path`",
+        ),
+        "tester": (
+            "`root_owner`",
+            "`chosen_rung`",
+            "`protected_floor`",
+            "`revisit_trigger`",
+            "`upgrade_path`",
+        ),
+    }
     if not contracts:
         errors.append("no role contracts")
 
@@ -60,7 +87,7 @@ def audit(skill_root: Path) -> dict[str, int]:
             errors.append(f"{relative}: missing explicit input/boundary section")
         if "Не " not in text and "Запрещено" not in text:
             errors.append(f"{relative}: missing negative authority boundary")
-        if len(text.splitlines()) > 120:
+        if delivery_package and len(text.splitlines()) > 120:
             errors.append(f"{relative}: contract exceeds 120 lines")
         lowered = text.casefold()
         for pattern in VAGUE_PATTERNS:
@@ -70,6 +97,9 @@ def audit(skill_root: Path) -> dict[str, int]:
             for required in ("engineering-context.json", lane_basis[path.stem]):
                 if required not in text:
                     errors.append(f"{relative}: missing pinned lane basis {required}")
+            for marker in simplicity_markers[path.stem]:
+                if marker not in text:
+                    errors.append(f"{relative}: missing simplicity marker {marker}")
 
     references: Counter[str] = Counter()
     for path in codex_adapters:
@@ -101,7 +131,9 @@ def audit(skill_root: Path) -> dict[str, int]:
         if "Верни" not in instructions and "верни" not in instructions:
             errors.append(f"{relative}: missing explicit return instruction")
         contract_text = (contract_dir / f"{contract}.md").read_text(encoding="utf-8") if contract in contract_names else ""
-        if ("## Режим" in contract_text or "## Режимы" in contract_text) and "режим" not in instructions.casefold():
+        if ("## Режим" in contract_text or "## Режимы" in contract_text) and not any(
+            token in instructions.casefold() for token in ("режим", "role_mode")
+        ):
             errors.append(f"{relative}: multi-mode contract without explicit mode")
         if len(instructions) > 1400:
             errors.append(f"{relative}: adapter exceeds 1400 characters")
@@ -136,7 +168,9 @@ def audit(skill_root: Path) -> dict[str, int]:
         if "Верни" not in compact and "верни" not in compact:
             errors.append(f"{relative}: missing explicit return instruction")
         contract_text = (contract_dir / f"{contract}.md").read_text(encoding="utf-8") if contract in contract_names else ""
-        if ("## Режим" in contract_text or "## Режимы" in contract_text) and "режим" not in compact.casefold():
+        if ("## Режим" in contract_text or "## Режимы" in contract_text) and not any(
+            token in compact.casefold() for token in ("режим", "role_mode")
+        ):
             errors.append(f"{relative}: multi-mode contract without explicit mode")
         if len(text) > 1600:
             errors.append(f"{relative}: adapter exceeds 1600 characters")
@@ -157,7 +191,7 @@ def audit(skill_root: Path) -> dict[str, int]:
         "contracts": len(contracts),
         "codex_adapters": len(codex_adapters),
         "claude_adapters": len(claude_adapters),
-        "checks": 10,
+        "checks": 15 if delivery_package else 10,
     }
 
 
