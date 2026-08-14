@@ -18,7 +18,7 @@ class DeliveryContextTests(unittest.TestCase):
     def test_map_validates(self) -> None:
         result = context.validate()
         self.assertEqual(result["routes"], 8)
-        self.assertEqual(result["sources"], 10)
+        self.assertEqual(result["sources"], 11)
 
     def test_backend_route(self) -> None:
         selected = context.choose("Нужно изменить backend HTTP API endpoint")
@@ -27,6 +27,12 @@ class DeliveryContextTests(unittest.TestCase):
     def test_default_route(self) -> None:
         selected = context.choose("небольшое изменение")
         self.assertEqual(selected[0]["id"], "core-change")
+
+    def test_core_route_carries_native_simplicity(self) -> None:
+        body = context.extract("core-change")
+        self.assertIn("E09. Лестница реализации", body)
+        self.assertIn("E10. Protected floor", body)
+        self.assertIn("`revisit_trigger`", body)
 
     def test_extract_is_bounded(self) -> None:
         body = context.extract("codebase-conformance")

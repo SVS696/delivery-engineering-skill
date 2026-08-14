@@ -223,6 +223,9 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
         for phase in range(1, 10):
             if f"## Фаза {phase}." not in workflow:
                 errors.append(f"delivery-pipeline.md: missing phase {phase}")
+        for invariant in ("### Process YAGNI", "лестницу реализации", "protected floor", "root_owner"):
+            if invariant not in workflow:
+                errors.append(f"delivery-pipeline.md: missing simplicity invariant {invariant}")
     except PipelineError as exc:
         errors.append(str(exc))
 
