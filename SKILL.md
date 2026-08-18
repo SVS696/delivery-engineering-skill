@@ -27,6 +27,8 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
 6. **Состояние переживает контекст.** `engineering-context.json`, отдельные
    `basis/<lane>.md`, `manifest.json`, lane cards и reports — handoff; история
    чата и самооценка агента не являются состоянием поставки.
+   `agent-ledger.json` хранит только human-only observability и не входит в
+   bounded role-context.
 7. **Merge/deploy отдельно.** Локальный diff, commit/MR, merge, deploy/restart
    и post-deploy verification — разные гейты.
 8. **Нативная простота.** До новой абстракции, зависимости или механизма пройди
@@ -153,5 +155,6 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
 | `{baseDir}/references/knowledge-map.md` | Маршруты выжимок |
 | `{baseDir}/references/source-registry.md` | Источники, версии и границы |
 | `{baseDir}/references/prompt-standard.md` | Стандарт ролевых prompts и eval-cases |
+| `{baseDir}/references/agent-observability.md` | Additive supervision, artifact bindings и finding yield без новых вызовов |
 | `{baseDir}/profiles/generic.md` | Безопасный fallback |
 | `{baseDir}/profiles/project-profile-template.md` | Шаблон приватного overlay |

@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import agent_ledger
 from delivery_context import (
     BASIS_DIRECTORY,
     ENGINEERING_CONTEXT_JSON,
@@ -263,6 +264,7 @@ def init_case(
         )
     (case_root / "lanes").mkdir()
     (case_root / "reports").mkdir()
+    agent_ledger.create(case_root, case_id)
 
     created = now()
     gates = {
