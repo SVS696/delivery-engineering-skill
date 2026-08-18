@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -121,7 +122,65 @@ class DeliveryCaseTests(unittest.TestCase):
             bundle = case.context_bundle(root, "backend")
             self.assertIn("basis/backend.md", bundle["allowed_inputs"])
             self.assertNotIn("basis/test.md", bundle["allowed_inputs"])
+            self.assertNotIn("agent-ledger.json", bundle["allowed_inputs"])
             self.assertEqual(bundle["basis_routes"], ["backend-http"])
+
+    def test_agent_observability_is_additive_and_auditable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "case"
+            prepare_context(root, {"test": ["test-design"]})
+            case.init_case(root, "D-11", "accept", "demo", ["test"])
+            run_id = case.agent_ledger.record_run(
+                root,
+                role="delivery-tester",
+                role_mode="verification",
+                model="test-model",
+                subject_sha256="a" * 64,
+                duration_seconds=3,
+                retries=0,
+                input_bytes=100,
+                input_tokens=20,
+                output_tokens=5,
+                reported_blocker=0,
+                reported_major=1,
+                reported_minor=1,
+                status="completed",
+                degraded_reasons=[],
+                lenses=["acceptance@1"],
+                prompt_artifact="acceptance.md",
+                output_artifact="evidence.md",
+            )
+            case.agent_ledger.record_verification(
+                root,
+                run_id=run_id,
+                accepted=1,
+                rejected=0,
+                duplicate=1,
+                verified=1,
+                evidence_ref="evidence.md",
+            )
+            _, payload = case.agent_ledger.load(root)
+            self.assertEqual(payload["runs"][0]["run_id"], "AR-0001")
+            self.assertEqual(
+                payload["runs"][0]["verification"]["dispositions"]["duplicate"],
+                1,
+            )
+            self.assertEqual(case.validate_case(root, False)["status"], "PASS")
+
+    def test_broken_optional_ledger_does_not_change_delivery_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "case"
+            prepare_context(root, {"test": ["test-design"]})
+            case.init_case(root, "D-12", "accept", "demo", ["test"])
+            ledger_path = root / case.agent_ledger.FILENAME
+            payload = json.loads(ledger_path.read_text(encoding="utf-8"))
+            payload["runs"] = "broken"
+            ledger_path.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(case.validate_case(root, False)["status"], "PASS")
+            _, broken = case.agent_ledger.load(root)
+            self.assertTrue(
+                case.agent_ledger.validate(broken, case_id="D-12", root=root)
+            )
 
 
 if __name__ == "__main__":

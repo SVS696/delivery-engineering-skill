@@ -1,0 +1,61 @@
+# Наблюдаемость модельных проходов
+
+`agent-ledger.json` хранит стоимость и результат уже состоявшихся BE/FE/test
+вызовов. Он не входит в role-context, не создаёт model call и не заменяет
+delivery gates.
+
+## Нулевая стоимость процесса
+
+- Не добавляй reviewer, synthesis или verification ради telemetry.
+- Используй нативный supervisor текущего harness. Не запускай CLI-agent или
+  polling wrapper только ради idle/hard timeout.
+- Один retry допустим лишь после подтверждённого transient/tool/transport сбоя
+  с тем же assignment. `degraded` coverage и содержательная ошибка не являются
+  retry-сигналом.
+- Старый case без ledger остаётся валидным.
+
+## Запись вызова
+
+```text
+python3 {baseDir}/scripts/agent_ledger.py record-run \
+  --case-root "<path>" --role delivery-tester --role-mode verification \
+  --model "<model>" --subject-sha256 "<sha256>" \
+  --duration-seconds 42 --retries 0 --status completed \
+  --reported-blocker 0 --reported-major 1 --reported-minor 0 \
+  --lens acceptance@1 --prompt-artifact "acceptance.md" \
+  --output-artifact "reports/tester.md"
+```
+
+`completed|degraded|failed|timed_out` описывает фактический исход. Для degraded
+или failed добавь `--degraded-reason`. Неизвестные token counters оставь `null`.
+
+`--prompt-artifact` и `--output-artifact` ссылаются только на уже существующие
+case-owned файлы. Ledger сохраняет ref и SHA-256 без второй копии корпуса. Raw
+content не дублируй, если case contract его не требует.
+
+Lens имеет форму `stable-id@version` и указывает на существующую project/role
+surface. Он не создаёт дополнительного агента. Project profile может объявить
+aliases и их точные contract inputs; версия меняется при смысловой смене правил.
+
+## Finding yield
+
+После уже обязательной coordinator/tester проверки классифицируй все reported
+findings одним receipt:
+
+```text
+python3 {baseDir}/scripts/agent_ledger.py record-verification \
+  --case-root "<path>" --run-id AR-0001 \
+  --accepted 1 --rejected 0 --duplicate 0 --verified 1 \
+  --evidence-ref "reports/tester.md"
+```
+
+`accepted|rejected|duplicate` должны покрыть все findings ровно один раз;
+`verified` — подмножество accepted. Отсутствующий receipt означает
+`unclassified`, а не нулевую полезность роли.
+
+## Границы
+
+- Ledger не передаётся BE/FE/tester и не влияет на их scope.
+- Code review не подменяет runtime/AC verification.
+- Повреждённый ledger отклоняет только честный observability claim; он не
+  превращает self-check разработчика в независимое evidence.

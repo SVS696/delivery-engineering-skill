@@ -31,6 +31,8 @@ Instructions, architecture/style guides, formatter/linter/type checker configs,
 Project build/lint/test/static/security/visual commands и write boundaries.
 Зафиксируй project-native возможности и reuse rules, обязательный protected
 floor и доказанные extension seams, которые нельзя удалить ради малого diff.
+Опциональные review-lens aliases задавай как
+`stable-id@version → существующие contract inputs`; alias не создаёт новый gate.
 
 ## Тестирование и приёмка
 

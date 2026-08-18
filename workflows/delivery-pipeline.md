@@ -79,6 +79,9 @@ semantic owner и уже назначенную tester surface. Только е�
    хотя бы один минимальный runnable check, затем запусти project checks.
 7. Координатор проверяет file boundaries, объединяет результат и помечает lane
    `implemented`, но не `verified`.
+8. После каждого уже состоявшегося role call запиши его outcome в
+   `agent-ledger.json` по `references/agent-observability.md`; запись не запускает
+   новый вызов и ledger не передаётся следующей роли.
 
 **Выход:** продуктовый diff и developer reports.
 
@@ -103,6 +106,8 @@ semantic owner и уже назначенную tester surface. Только е�
    недостаточны.
 3. Классифицируй defect/spec gap/environment blocker/coverage gap/baseline.
 4. После исправления повтори defect и regression neighborhood новым запуском.
+5. После штатной классификации findings добавь verification receipt; не запускай
+   отдельный review ради заполнения метрики.
 
 **Выход:** `verified`, `failed`, `partial` или `blocked` с evidence.
 
