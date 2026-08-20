@@ -191,7 +191,7 @@ def audit(skill_root: Path) -> dict[str, int]:
         "contracts": len(contracts),
         "codex_adapters": len(codex_adapters),
         "claude_adapters": len(claude_adapters),
-        "checks": 15 if delivery_package else 10,
+        "checks": 20 if delivery_package else 10,
     }
 
 

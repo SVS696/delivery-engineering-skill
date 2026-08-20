@@ -130,7 +130,14 @@ def validate(payload: Any, *, case_id: str, root: Path | None = None) -> list[st
             not isinstance(item, str) or not LENS_RE.fullmatch(item) for item in lenses
         ):
             errors.append(f"{label} lenses must be unique stable id@version values")
-        for field in ("input_bytes", "input_tokens", "output_tokens", "retries"):
+        for field in (
+            "input_bytes",
+            "input_tokens",
+            "output_tokens",
+            "retries",
+            "tool_calls",
+            "poll_calls",
+        ):
             value = run.get(field)
             if value is not None and (
                 not isinstance(value, int) or isinstance(value, bool) or value < 0
@@ -139,6 +146,13 @@ def validate(payload: Any, *, case_id: str, root: Path | None = None) -> list[st
         duration = run.get("duration_seconds")
         if not isinstance(duration, (int, float)) or isinstance(duration, bool) or duration < 0:
             errors.append(f"{label} has invalid duration_seconds")
+        wait_seconds = run.get("wait_seconds")
+        if wait_seconds is not None and (
+            not isinstance(wait_seconds, (int, float))
+            or isinstance(wait_seconds, bool)
+            or wait_seconds < 0
+        ):
+            errors.append(f"{label} wait_seconds must be non-negative or null")
         findings = run.get("findings")
         if not isinstance(findings, dict):
             errors.append(f"{label} findings must be an object")
@@ -221,6 +235,9 @@ def record_run(
     lenses: list[str],
     prompt_artifact: str | None,
     output_artifact: str | None,
+    tool_calls: int | None = None,
+    poll_calls: int | None = None,
+    wait_seconds: float | None = None,
 ) -> str:
     path, payload = load(root)
     errors = validate(payload, case_id=str(payload.get("case_id")), root=root)
@@ -236,9 +253,29 @@ def record_run(
         not LENS_RE.fullmatch(item) for item in normalized_lenses
     ):
         raise LedgerError("Agent lenses must be unique stable id@version values")
-    counters = [input_bytes, input_tokens, output_tokens, retries, reported_blocker, reported_major, reported_minor]
-    if any(value is not None and value < 0 for value in counters) or duration_seconds < 0:
+    counters = [
+        input_bytes,
+        input_tokens,
+        output_tokens,
+        retries,
+        reported_blocker,
+        reported_major,
+        reported_minor,
+        tool_calls,
+        poll_calls,
+    ]
+    if any(
+        value is not None
+        and (not isinstance(value, int) or isinstance(value, bool) or value < 0)
+        for value in counters
+    ) or duration_seconds < 0:
         raise LedgerError("Agent counters and duration must be non-negative")
+    if wait_seconds is not None and (
+        not isinstance(wait_seconds, (int, float))
+        or isinstance(wait_seconds, bool)
+        or wait_seconds < 0
+    ):
+        raise LedgerError("Agent wait_seconds must be non-negative or null")
     if not SHA256_RE.fullmatch(subject_sha256):
         raise LedgerError("Agent subject hash must be lowercase SHA-256")
     run: dict[str, Any] = {
@@ -253,6 +290,9 @@ def record_run(
         "output_tokens": output_tokens,
         "duration_seconds": duration_seconds,
         "retries": retries,
+        "tool_calls": tool_calls,
+        "poll_calls": poll_calls,
+        "wait_seconds": wait_seconds,
         "findings": {
             "blocker": reported_blocker,
             "major": reported_major,
@@ -336,6 +376,9 @@ def parser() -> argparse.ArgumentParser:
     record.add_argument("--input-bytes", type=int)
     record.add_argument("--input-tokens", type=int)
     record.add_argument("--output-tokens", type=int)
+    record.add_argument("--tool-calls", type=int)
+    record.add_argument("--poll-calls", type=int)
+    record.add_argument("--wait-seconds", type=float)
     record.add_argument("--reported-blocker", type=int, default=0)
     record.add_argument("--reported-major", type=int, default=0)
     record.add_argument("--reported-minor", type=int, default=0)
@@ -381,6 +424,9 @@ def main() -> int:
                 lenses=args.lens,
                 prompt_artifact=args.prompt_artifact,
                 output_artifact=args.output_artifact,
+                tool_calls=args.tool_calls,
+                poll_calls=args.poll_calls,
+                wait_seconds=args.wait_seconds,
             )
             result = {"status": "PASS", "run_id": run_id}
         elif args.command == "record-verification":

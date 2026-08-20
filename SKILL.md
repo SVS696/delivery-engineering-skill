@@ -35,6 +35,9 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
    лестницу переиспользования, исправляй корневого владельца причины и не удаляй
    protected floor безопасности, данных, accessibility, совместимости и
    доказанной расширяемости.
+9. **Green относится к границе результата.** Локальные checks не доказывают
+   внешнюю проекцию, handoff, merge или deploy. Обязательный read-back входит в
+   соответствующий green; после достигнутого terminal state лишние проходы запрещены.
 
 ## Когда применять
 

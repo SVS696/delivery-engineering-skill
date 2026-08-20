@@ -18,7 +18,7 @@ class DeliveryContextTests(unittest.TestCase):
     def test_map_validates(self) -> None:
         result = context.validate()
         self.assertEqual(result["routes"], 8)
-        self.assertEqual(result["sources"], 11)
+        self.assertEqual(result["sources"], 12)
 
     def test_backend_route(self) -> None:
         selected = context.choose("Нужно изменить backend HTTP API endpoint")

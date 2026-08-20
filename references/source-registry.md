@@ -95,6 +95,14 @@
       "url": "https://github.com/DietrichGebert/ponytail/blob/2ed6c52c9d7e5e56942508591085fd45dea277d3/skills/ponytail/SKILL.md",
       "access": "public GitHub source",
       "used": ["ordered implementation ladder", "protected floor", "smallest runnable check", "conscious ceiling and revisit trigger"]
+    },
+    {
+      "id": "BENJAMIN-PLUS-532771B",
+      "title": "Benjamin Plus skill",
+      "version": "snapshot 532771be5687566b12a9f62e17fbe7ad3591518c",
+      "url": "https://github.com/JetBrains/benjamin-plus-skill/tree/532771be5687566b12a9f62e17fbe7ad3591518c",
+      "access": "public GitHub source, MIT",
+      "used": ["batched reconnaissance", "inspection versus ingestion", "named check boundary", "bounded polling", "paired efficiency measurement"]
     }
   ]
 }

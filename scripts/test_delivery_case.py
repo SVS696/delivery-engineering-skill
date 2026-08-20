@@ -141,6 +141,9 @@ class DeliveryCaseTests(unittest.TestCase):
                 input_bytes=100,
                 input_tokens=20,
                 output_tokens=5,
+                tool_calls=7,
+                poll_calls=1,
+                wait_seconds=30,
                 reported_blocker=0,
                 reported_major=1,
                 reported_minor=1,
@@ -161,11 +164,25 @@ class DeliveryCaseTests(unittest.TestCase):
             )
             _, payload = case.agent_ledger.load(root)
             self.assertEqual(payload["runs"][0]["run_id"], "AR-0001")
+            self.assertEqual(payload["runs"][0]["tool_calls"], 7)
+            self.assertEqual(payload["runs"][0]["poll_calls"], 1)
+            self.assertEqual(payload["runs"][0]["wait_seconds"], 30)
             self.assertEqual(
                 payload["runs"][0]["verification"]["dispositions"]["duplicate"],
                 1,
             )
             self.assertEqual(case.validate_case(root, False)["status"], "PASS")
+            payload["runs"][0]["poll_calls"] = -1
+            self.assertTrue(
+                any(
+                    "poll_calls" in error
+                    for error in case.agent_ledger.validate(
+                        payload,
+                        case_id="D-11",
+                        root=root,
+                    )
+                )
+            )
 
     def test_broken_optional_ledger_does_not_change_delivery_gate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
