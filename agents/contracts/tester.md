@@ -68,10 +68,14 @@ Self-report автора — навигация к evidence, не доказат
    extension seam не должны исчезнуть ради меньшего diff.
 5. Если указан `ceiling`, потребуй измеримый `revisit_trigger` и `upgrade_path`;
    отсутствие обычного маркера у прямого кода не является finding.
-6. Автоматические checks используй для механических правил, inspection — для
+6. Сверь `implementation_transition`: один `authoritative_owner`, legacy не
+   содержит новых правил, а superseded paths удалены по call graph/routes/config/
+   flags/tests/docs либо точно совпадают с разрешённой стадией и
+   `retirement_trigger`. Проверяй runtime reachability, а не только имя файла.
+7. Автоматические checks используй для механических правил, inspection — для
    структуры и смысла.
-7. Не требуй личное предпочтение без project evidence.
-8. Конфликт канона с очевидным defect/security risk вынеси отдельным finding.
+8. Не требуй личное предпочтение без project evidence.
+9. Конфликт канона с очевидным defect/security risk вынеси отдельным finding.
 
 ## Запрещено
 

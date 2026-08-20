@@ -38,6 +38,10 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
 9. **Green относится к границе результата.** Локальные checks не доказывают
    внешнюю проекцию, handoff, merge или deploy. Обязательный read-back входит в
    соответствующий green; после достигнутого terminal state лишние проходы запрещены.
+10. **Один authoritative implementation path.** Существующее поведение либо
+    развивается у текущего owner, либо заменяется целиком, либо временно
+    мигрирует по принятому transition contract. Legacy не получает новые
+    бизнес-правила и не остаётся без retirement trigger.
 
 ## Когда применять
 
@@ -144,6 +148,9 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
 - Developer report фиксирует `root_owner`, `chosen_rung`, состояние
   `protected_floor` и, только для сознательного компромисса, измеримый
   `revisit_trigger` с `upgrade_path`.
+- Для затронутой существующей реализации report фиксирует
+  `implementation_transition`, authoritative owner, superseded/temporary paths,
+  retirement trigger и removal evidence.
 - BE/FE выполнили project checks и вернули воспроизводимое evidence.
 - Tester независимо проверил persisted/live result либо назвал coverage gaps.
 - `implemented`, `verified`, `merged` и `deployed` не смешаны.

@@ -43,6 +43,11 @@
 3. Составь `conformance.md`: правило, источник, выбранный паттерн, конфликт.
 4. Отдели устойчивый style от legacy/дефекта; спорный публичный выбор вынеси в
    decision, не маскируй «стилем проекта».
+5. Если способность уже реализована, составь change-local inventory её owners,
+   entrypoints, callers, routes/config/flags/data/tests/docs. Прими из handoff
+   `evolve-in-place|replace-and-remove|staged-migration`. При отсутствии поля
+   допустим только evidence-backed `evolve-in-place` у единственного текущего
+   owner; новый/replacement owner, coexistence или конфликт требуют spec gap.
 
 **Выход:** change-local codebase canon с evidence paths.
 
@@ -79,17 +84,22 @@ semantic owner и уже назначенную tester surface. Только е�
    dependency → прямой код у текущего владельца → минимальный новый механизм.
 4. Исправляй `root_owner` общей причины один раз, а не размножай симптоматические
    исключения по callers. Минимальный diff в неверном месте не считается простым.
-5. Сохраняй protected floor: подтверждённое поведение, trust boundaries,
+5. Реализуй принятый `implementation_transition`. В каждый момент один owner
+   authoritative; compatibility adapter только переводит контракт и не получает
+   новых правил. `replace-and-remove` удаляет superseded runtime paths в этой
+   поставке. `staged-migration` сохраняет только перечисленный residue текущей
+   стадии с retirement trigger и rollback boundary.
+6. Сохраняй protected floor: подтверждённое поведение, trust boundaries,
    безопасность/данные, accessibility, совместимость, наблюдаемость и доказанную
    extension seam. Простота не равна одноразовому hardcode.
-6. Добавь релевантные risk-based tests; для новой нетривиальной логики оставь
+7. Добавь релевантные risk-based tests; для новой нетривиальной логики оставь
    хотя бы один минимальный runnable check, затем запусти project checks.
    Named task/project check определяет `local-green` только вместе с применимыми
    delivery gates. Если тот же check дважды падает при неизменной гипотезе,
    смени причину или подход до следующей правки, а не исправляй очередной симптом.
-7. Координатор проверяет file boundaries, объединяет результат и помечает lane
+8. Координатор проверяет file boundaries, объединяет результат и помечает lane
    `implemented`, но не `verified`.
-8. После каждого уже состоявшегося role call запиши его outcome в
+9. После каждого уже состоявшегося role call запиши его outcome в
    `agent-ledger.json` по `references/agent-observability.md`; запись не запускает
    новый вызов и ledger не передаётся следующей роли.
 
@@ -115,8 +125,11 @@ semantic owner и уже назначенную tester surface. Только е�
 2. Проверяй persisted/live result; preview, mergeability и HTTP 200 сами по себе
    недостаточны.
 3. Классифицируй defect/spec gap/environment blocker/coverage gap/baseline.
-4. После исправления повтори defect и regression neighborhood новым запуском.
-5. После штатной классификации findings добавь verification receipt; не запускай
+4. Для replacement/cutover проверь наблюдаемую недостижимость superseded пути и
+   сохранность только разрешённого compatibility residue; HTTP 404 без проверки
+   callers/config/flags/data flow не доказывает removal.
+5. После исправления повтори defect и regression neighborhood новым запуском.
+6. После штатной классификации findings добавь verification receipt; не запускай
    отдельный review ради заполнения метрики.
 
 **Выход:** `verified`, `failed`, `partial` или `blocked` с evidence.
@@ -128,8 +141,12 @@ semantic owner и уже назначенную tester surface. Только е�
 1. В свежем tester `conformance` пройди матрицу style/architecture/API/data/UI.
 2. Запусти обязательные lint/build/test/static/security/visual checks профиля.
 3. Сверь `REQ/AC → diff → tests → evidence` и отсутствие scope creep.
-4. Если после review изменился subject, затронутые gates становятся stale.
-5. Выполни `delivery_case.py validate --final`.
+4. Сверь implementation-transition report с diff/search/runtime evidence:
+   authoritative owner единственный, legacy не получил новые правила,
+   superseded routes/config/flags/tests/docs удалены либо точно ограничены
+   принятой стадией и retirement trigger.
+5. Если после review изменился subject, затронутые gates становятся stale.
+6. Выполни `delivery_case.py validate --final`.
 
 **Выход:** локальная поставка готова к следующему внешнему gate.
 
