@@ -2,7 +2,7 @@
 
 **Источники:** `OPENAI-GPT5-PROMPTING-2025`, разделы Agentic workflow,
 Coding performance, Instruction following; `OPENAI-MODEL-GUIDANCE-LATEST`,
-Prompting best practices.
+Prompting best practices; `BENJAMIN-PLUS-532771B`, execution-economy tactics.
 
 Стандарт применяется к contracts и тонким runtime adapters. Contract хранит
 полную логику роли; adapter только выбирает contract, mode, context boundary,
@@ -47,6 +47,10 @@ write boundary и возврат результата.
 
 ## P06. Context gathering для кода
 
+- Известные независимые navigation/environment probes собираются одним round;
+  следующий round отвечает на новые вопросы из первого.
+- Узкий preview только находит source unit; принятые instructions/config/data
+  читаются полностью, а не усекаются ради экономии.
 - Поиск завершается, когда названы exact files/contracts/checks для change.
 - Исследуются только изменяемые symbols и зависимости их публичного контракта.
 - Codebase style передаётся конкретными instructions/configs/analogs, а не
@@ -74,6 +78,11 @@ Prompt нельзя считать улучшенным только по ощу
 14. известный предел без измеримого trigger/upgrade path → incomplete report;
 15. новый reviewer/check «для уверенности» → сначала deterministic check,
     текущий owner и существующая tester surface.
+16. lookup неописанной конвенции → два точных примера либо один канонический config;
+17. узкий preview выбранного source → полное ingestion до изменения;
+18. один named check падает дважды при той же гипотезе → смена подхода;
+19. local checks зелёные при обязательной внешней записи → read-back до terminal green;
+20. running agent без нового события → крупный wait slice, не частый polling.
 
 Статический `prompt_audit.py` проверяет структуру. Поведенческие evals следует
 прогонять на целевых моделях при существенном изменении contracts; статический

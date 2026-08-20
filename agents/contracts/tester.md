@@ -48,11 +48,14 @@ Self-report автора — навигация к evidence, не доказат
 
 ## Verification
 
-1. Подтверди basis/subject/environment до запуска.
+1. Подтверди basis/subject/environment одним пакетом независимых read-only
+   probes до запуска; следующий recon делай только для новых вопросов.
 2. Выполни traceable checks и сохрани expected/actual/evidence.
 3. Проверь persisted/live result там, где контракт выходит за process output.
-4. Классифицируй findings и residual risk; `not-run` оставь coverage gap.
-5. Не исправляй product code в этой сессии.
+4. Если один check дважды падает при неизменной гипотезе, зафиксируй evidence и
+   измени гипотезу или способ проверки, а не повторяй тот же маршрут.
+5. Классифицируй findings и residual risk; `not-run` оставь coverage gap.
+6. Не исправляй product code в этой сессии.
 
 ## Conformance
 

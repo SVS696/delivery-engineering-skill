@@ -95,3 +95,25 @@ subject fingerprint. `not_required` требует причины.
 - `test-design`: test `designed`; implementation/verification gates явно
   `not_required`, остальные применимые gates закрыты.
 - `blocked`, `failed`, `partial`, `stale` никогда не округляются до `pass`.
+
+## Terminal green
+
+Green определяется границей текущего запроса, а не одной успешной командой:
+
+- `local-green` — локальный diff/артефакт, named project checks и применимые
+  delivery gates актуальны; открытых defects, меняющих результат, нет;
+- `projection-green` — разрешённая внешняя проекция или MR/задача обновлена,
+  прочитана обратно и совпадает с локальным result revision;
+- `handoff-green` — требуемая передача следующему владельцу/гейту зафиксирована
+  вместе с evidence и точным состоянием результата;
+- `final-green` — доказан terminal state текущего запроса, включая merge/deploy/
+  post-deploy только когда они были отдельно разрешены и фактически проверены.
+
+Это human-facing proof labels, а не новые lane/gate statuses и не обход
+существующей state machine.
+
+Уровни не дают новых полномочий. Если запрос заканчивается на `local-green`,
+внешняя запись не выполняется. Если он требует projection/handoff, read-back
+является частью green, а не дополнительным проходом. После достигнутого уровня
+новый review, повторное чтение или check запускаются только при новом evidence,
+изменившемся subject либо более дальней явно разрешённой границе.

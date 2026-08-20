@@ -30,9 +30,16 @@
 **Вход:** target repo, profile и затронутые surfaces.
 
 1. Зафиксируй dirty baseline и чужие изменения.
+   Одним read-only probe собери известные runtime/tool/dependency capabilities и
+   названные project checks; неизвестное не устанавливай без разрешённого scope.
 2. Для каждой surface найди инструкции, tool configs, аналогичный код и тесты;
    проследи реальный поток от входа до результата, callers и соседних
    потребителей изменяемого контракта.
+   Независимые navigation probes объединяй в один batch/parallel round; второй
+   round отвечает только на вопросы, возникшие из первого. Узкие previews служат
+   навигации, но выбранные instructions/config/source для реализации читаются
+   полностью. При отсутствии канонического config/contract сравни два реальных
+   примера точной project-конвенции; при наличии канона дополнительный lookup не нужен.
 3. Составь `conformance.md`: правило, источник, выбранный паттерн, конфликт.
 4. Отдели устойчивый style от legacy/дефекта; спорный публичный выбор вынеси в
    decision, не маскируй «стилем проекта».
@@ -77,6 +84,9 @@ semantic owner и уже назначенную tester surface. Только е�
    extension seam. Простота не равна одноразовому hardcode.
 6. Добавь релевантные risk-based tests; для новой нетривиальной логики оставь
    хотя бы один минимальный runnable check, затем запусти project checks.
+   Named task/project check определяет `local-green` только вместе с применимыми
+   delivery gates. Если тот же check дважды падает при неизменной гипотезе,
+   смени причину или подход до следующей правки, а не исправляй очередной симптом.
 7. Координатор проверяет file boundaries, объединяет результат и помечает lane
    `implemented`, но не `verified`.
 8. После каждого уже состоявшегося role call запиши его outcome в
@@ -131,5 +141,8 @@ semantic owner и уже назначенную tester surface. Только е�
    read-back.
 2. Не self-merge; merge, deploy и post-deploy verification остаются отдельными.
 3. Верни covered IDs, revisions, commands/evidence, gaps и точный next gate.
+4. Определи достигнутый green-level по `references/case-state.md`. Read-back
+   разрешённой внешней записи является частью результата, а после доказанного
+   terminal level не запускай дополнительный review/check без нового evidence.
 
 **Выход:** фактическое состояние без смешения implementation и delivery.

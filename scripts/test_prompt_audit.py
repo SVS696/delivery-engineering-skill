@@ -18,7 +18,7 @@ class PromptAuditTests(unittest.TestCase):
     def test_delivery_prompts_pass(self) -> None:
         result = audit.audit(Path(__file__).resolve().parent.parent)
         self.assertEqual(result["contracts"], 3)
-        self.assertEqual(result["checks"], 15)
+        self.assertEqual(result["checks"], 20)
 
     def test_missing_protected_floor_is_rejected(self) -> None:
         source = Path(__file__).resolve().parent.parent

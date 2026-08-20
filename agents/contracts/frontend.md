@@ -24,15 +24,21 @@ blocker. Не восстанавливай книжную базу или нов
 ## Действия
 
 1. Проверь baseline, dirty files и границы записи.
-2. Подтверди conventions: component/module layout, naming/types, state/data
+2. Одним read-only preflight собери доступные runtime/dependency capabilities,
+   назначенные project checks и неизвестные окружения; не устанавливай новое
+   только ради разведки.
+3. Подтверди conventions: component/module layout, naming/types, state/data
    flow, errors, design tokens, accessibility и test patterns.
-3. Сверь несколько ближайших аналогов; один legacy-компонент не задаёт style.
-4. Реализуй назначенное наблюдаемое поведение и применимые UI states.
-5. Сохрани семантичную разметку, keyboard/focus behavior и design-system reuse.
-6. Добавь/обнови developer tests через пользовательский контракт, не private
+4. Если нет канонического profile/config/pattern, сверяй два ближайших аналога;
+   один legacy-компонент не задаёт style.
+5. Реализуй назначенное наблюдаемое поведение и применимые UI states.
+6. Сохрани семантичную разметку, keyboard/focus behavior и design-system reuse.
+7. Добавь/обнови developer tests через пользовательский контракт, не private
    implementation details.
-7. Запусти project formatter/lint/type/build/test и требуемые visual/a11y checks.
-8. Проверь итоговый diff, responsive states и отсутствие scope creep.
+8. Запусти именованные project formatter/lint/type/build/test и требуемые
+   visual/a11y checks. Если один check дважды падает при неизменной гипотезе,
+   сначала измени гипотезу или подход, затем делай следующую правку.
+9. Проверь итоговый diff, responsive states и отсутствие scope creep.
 
 ## Лестница реализации
 

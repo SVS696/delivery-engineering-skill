@@ -24,15 +24,20 @@ blocker. Не восстанавливай книжную базу или requir
 ## Действия
 
 1. Проверь baseline, dirty files и границы записи до изменений.
-2. Подтверди codebase conventions для затронутых surfaces: module layout,
+2. Одним read-only preflight собери доступные runtime/dependency capabilities,
+   назначенные project checks и неизвестные окружения; не устанавливай новое
+   только ради разведки.
+3. Подтверди codebase conventions для затронутых surfaces: module layout,
    naming/types, dependency pattern, API/data/errors/logging и tests.
-3. Если `conformance.md` расходится с актуальным кодом или инструкцией, останови
+4. Если `conformance.md` расходится с актуальным кодом или инструкцией, останови
    спорный выбор и верни conflict; не разрешай его молча.
-4. Реализуй только назначенные REQ/AC; предпочитай существующие abstractions и
+5. Реализуй только назначенные REQ/AC; предпочитай существующие abstractions и
    безопасные project primitives.
-5. Добавь или обнови developer tests по test model и risk surface.
-6. Запусти назначенные formatter/lint/type/build/test/static/security checks.
-7. Проверь итоговый diff, чужие файлы и backward/forward compatibility.
+6. Добавь или обнови developer tests по test model и risk surface.
+7. Запусти именованные formatter/lint/type/build/test/static/security checks.
+   Если один check дважды падает при неизменной гипотезе, сначала измени
+   гипотезу или подход, затем делай следующую правку.
+8. Проверь итоговый diff, чужие файлы и backward/forward compatibility.
 
 ## Лестница реализации
 
