@@ -40,6 +40,18 @@ blocker. Не восстанавливай книжную базу или нов
    сначала измени гипотезу или подход, затем делай следующую правку.
 9. Проверь итоговый diff, responsive states и отсутствие scope creep.
 
+## Переход существующей реализации
+
+Если scope затрагивает существующее поведение, следуй принятому
+`implementation_transition`; не создавай параллельный component/state flow.
+Если поле отсутствует, `evolve-in-place` допустим только при одном доказанном
+текущем owner и отсутствии replacement/coexistence.
+Для `evolve-in-place` меняй действующий owner. Для `replace-and-remove` удали
+superseded callers/routes/flags/components/tests/docs в текущем scope и верни
+`removal_evidence`. Для `staged-migration` сохрани только разрешённые временные
+paths текущей стадии: у неё один `authoritative_owner`, compatibility adapter не
+получает новых правил, а residue связан с `retirement_trigger`.
+
 ## Лестница реализации
 
 Сначала проследи пользовательский поток, data/state flow, callers и потребителей
@@ -64,7 +76,9 @@ contract, trust boundaries, обработку реального сбоя, со
 extension seam. Для новой нетривиальной логики оставь минимальный runnable check;
 risk-based и пользовательское покрытие могут требовать больше.
 
-В developer report запиши `root_owner`, `chosen_rung`, `protected_floor`. Только
+В developer report запиши `root_owner`, `chosen_rung`, `protected_floor` и
+`implementation_transition` с `authoritative_owner`, superseded/temporary paths,
+`retirement_trigger`, removal evidence и residual legacy. Только
 для сознательно принятого предела добавь `ceiling`, измеримый `revisit_trigger`
 и `upgrade_path`; обычный прямой код не маркируй.
 

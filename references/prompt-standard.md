@@ -83,6 +83,9 @@ Prompt нельзя считать улучшенным только по ощу
 18. один named check падает дважды при той же гипотезе → смена подхода;
 19. local checks зелёные при обязательной внешней записи → read-back до terminal green;
 20. running agent без нового события → крупный wait slice, не частый polling.
+21. новая реализация дублирует legacy owner → выбран transition mode, один
+    authoritative owner, removal evidence либо bounded staged residue с
+    retirement trigger; новые правила в legacy запрещены.
 
 Статический `prompt_audit.py` проверяет структуру. Поведенческие evals следует
 прогонять на целевых моделях при существенном изменении contracts; статический

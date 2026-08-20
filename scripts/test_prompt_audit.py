@@ -18,7 +18,7 @@ class PromptAuditTests(unittest.TestCase):
     def test_delivery_prompts_pass(self) -> None:
         result = audit.audit(Path(__file__).resolve().parent.parent)
         self.assertEqual(result["contracts"], 3)
-        self.assertEqual(result["checks"], 20)
+        self.assertEqual(result["checks"], 21)
 
     def test_missing_protected_floor_is_rejected(self) -> None:
         source = Path(__file__).resolve().parent.parent
@@ -28,6 +28,22 @@ class PromptAuditTests(unittest.TestCase):
             contract = root / "agents" / "contracts" / "backend.md"
             contract.write_text(
                 contract.read_text(encoding="utf-8").replace("`protected_floor`", "protected state"),
+                encoding="utf-8",
+            )
+            with self.assertRaises(audit.PromptAuditError):
+                audit.audit(root)
+
+    def test_missing_implementation_transition_is_rejected(self) -> None:
+        source = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "skill"
+            shutil.copytree(source, root, ignore=shutil.ignore_patterns("__pycache__"))
+            contract = root / "agents" / "contracts" / "frontend.md"
+            contract.write_text(
+                contract.read_text(encoding="utf-8").replace(
+                    "`implementation_transition`",
+                    "transition decision",
+                ),
                 encoding="utf-8",
             )
             with self.assertRaises(audit.PromptAuditError):
