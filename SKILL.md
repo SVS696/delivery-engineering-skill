@@ -43,6 +43,11 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
     развивается у текущего owner, либо заменяется целиком, либо временно
     мигрирует по принятому transition contract. Legacy не получает новые
     бизнес-правила и не остаётся без retirement trigger.
+11. **Процесс проверяет внешний аудитор.** После terminal, blocked, guard/user
+    stop или исчерпания verification budget создай hash-bound episode и запусти
+    независимый Process Auditor. Delivery tester проверяет продукт, но не
+    соразмерность собственного orchestration. Verdict не возобновляет ручной stop
+    и не меняет policy автоматически.
 
 ## Когда применять
 
@@ -130,7 +135,8 @@ python3 {baseDir}/scripts/delivery_case.py init --case-root "<case-root>" \
 Полностью прочитай и выполни
 `{baseDir}/workflows/delivery-pipeline.md`. Вход и reports заданы в
 `{baseDir}/references/delivery-handoff.md`; состояние — в
-`{baseDir}/references/case-state.md`.
+`{baseDir}/references/case-state.md`. Post-run граница — в
+`{baseDir}/references/process-audit-integration.md`.
 
 ## Проверка скилла
 
@@ -160,6 +166,9 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
 - BE/FE выполнили project checks и вернули воспроизводимое evidence.
 - Tester независимо проверил persisted/live result либо назвал coverage gaps.
 - `implemented`, `verified`, `merged` и `deployed` не смешаны.
+- После каждого terminal/interrupted delivery cycle сохранён независимый process
+  verdict: `KEEP` либо доказанная категория дефекта; manual stop остаётся
+  `resume_authority=user_only`.
 
 ## Индекс
 
@@ -172,5 +181,6 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
 | `{baseDir}/references/source-registry.md` | Источники, версии и границы |
 | `{baseDir}/references/prompt-standard.md` | Стандарт ролевых prompts и eval-cases |
 | `{baseDir}/references/agent-observability.md` | Additive supervision, artifact bindings и finding yield без новых вызовов |
+| `{baseDir}/references/process-audit-integration.md` | Независимый post-run аудит процесса и ручных остановок |
 | `{baseDir}/profiles/generic.md` | Безопасный fallback |
 | `{baseDir}/profiles/project-profile-template.md` | Шаблон приватного overlay |
