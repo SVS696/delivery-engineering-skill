@@ -27,8 +27,9 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
 6. **Состояние переживает контекст.** `engineering-context.json`, отдельные
    `basis/<lane>.md`, `manifest.json`, lane cards и reports — handoff; история
    чата и самооценка агента не являются состоянием поставки.
-   `agent-ledger.json` хранит только human-only observability и не входит в
-   bounded role-context.
+   `agent-ledger.json` не входит в bounded role-context, но schema-3 case
+   связывает независимые verification/conformance PASS с точным completed run,
+   subject hash и неизменным output artifact.
 7. **Merge/deploy отдельно.** Локальный diff, commit/MR, merge, deploy/restart
    и post-deploy verification — разные гейты.
 8. **Нативная простота.** До новой абстракции, зависимости или механизма пройди
@@ -90,6 +91,9 @@ generic. Профиль дополняет, но не заменяет ближ�
   публичном контракте.
 - `verification` и `conformance` — свежие запуски. Авторский self-report служит
   картой evidence, но не доказательством.
+- Перед каждым полным verification выполни `begin-verification`. На одну
+  неизменную source revision разрешены initial pass и не более двух correction
+  passes; затем собери один полный spec-feedback batch или запроси решение.
 - Tester не исправляет продуктовый код во время независимой проверки.
 - Роли не мержат, не деплоят и не меняют внешние статусы без отдельного гейта.
 
@@ -143,6 +147,8 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
 - Для каждой lane инженерная база материализована, привязана к manifest и
   автоматически входит в её role-context; basis другой lane исключён.
 - Scope связан с REQ/AC и конкретными worktree/file boundaries.
+- Vigers-authored scope связан с immutable `delivery-handoff.json`; его revision
+  и hashes не восстанавливаются из чата.
 - Чужие dirty changes сохранены и не попали в результат.
 - Для каждого изменённого контура есть style evidence из проекта.
 - Developer report фиксирует `root_owner`, `chosen_rung`, состояние

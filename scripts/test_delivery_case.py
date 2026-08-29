@@ -58,6 +58,9 @@ class DeliveryCaseTests(unittest.TestCase):
             with self.assertRaises(case.CaseError) as raised:
                 case.validate_case(root, False)
             self.assertIn("stale gate subjects", str(raised.exception))
+            _, data = case.load(root)
+            self.assertEqual(data["gates"]["scope"]["status"], "stale")
+            self.assertIn("`scope`: `stale`", (root / "status.md").read_text())
 
     def test_test_design_happy_path(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -184,7 +187,7 @@ class DeliveryCaseTests(unittest.TestCase):
                 )
             )
 
-    def test_broken_optional_ledger_does_not_change_delivery_gate(self) -> None:
+    def test_schema_three_rejects_broken_agent_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "case"
             prepare_context(root, {"test": ["test-design"]})
@@ -193,11 +196,184 @@ class DeliveryCaseTests(unittest.TestCase):
             payload = json.loads(ledger_path.read_text(encoding="utf-8"))
             payload["runs"] = "broken"
             ledger_path.write_text(json.dumps(payload), encoding="utf-8")
-            self.assertEqual(case.validate_case(root, False)["status"], "PASS")
+            with self.assertRaises(case.CaseError) as raised:
+                case.validate_case(root, False)
+            self.assertIn("agent ledger", str(raised.exception))
             _, broken = case.agent_ledger.load(root)
             self.assertTrue(
                 case.agent_ledger.validate(broken, case_id="D-12", root=root)
             )
+
+    def test_independent_pass_requires_exact_fresh_tester_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "case"
+            prepare_context(root, {"test": ["test-design"]})
+            case.init_case(root, "D-13", "accept", "demo", ["test"])
+            subject = root / "acceptance.md"
+            assignment = case.begin_verification(
+                root,
+                subjects=[subject],
+                note="Initial acceptance verification",
+            )
+            report = root / "reports" / "verification.md"
+            report.write_text("# Verification\n\nPASS\n", encoding="utf-8")
+            run_id = case.agent_ledger.record_run(
+                root,
+                role="delivery-tester",
+                role_mode="verification",
+                model="test-model",
+                subject_sha256=assignment["subject_sha256"],
+                duration_seconds=1,
+                retries=0,
+                input_bytes=None,
+                input_tokens=None,
+                output_tokens=None,
+                reported_blocker=0,
+                reported_major=0,
+                reported_minor=0,
+                status="completed",
+                degraded_reasons=[],
+                lenses=["acceptance@1"],
+                prompt_artifact=None,
+                output_artifact="reports/verification.md",
+            )
+            with self.assertRaisesRegex(case.CaseError, "requires --agent-run"):
+                case.set_gate(
+                    root,
+                    "independent_verification",
+                    "pass",
+                    "reports/verification.md",
+                    "",
+                    [subject],
+                )
+            case.set_gate(
+                root,
+                "independent_verification",
+                "pass",
+                "reports/verification.md",
+                "",
+                [subject],
+                run_id,
+            )
+            _, data = case.load(root)
+            self.assertEqual(
+                data["gates"]["independent_verification"]["agent_run"]["run_id"],
+                run_id,
+            )
+            self.assertEqual(case.validate_case(root, False)["status"], "PASS")
+
+    def test_verification_budget_stops_fourth_full_assignment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "case"
+            prepare_context(root, {"test": ["test-design"]})
+            case.init_case(root, "D-14", "accept", "demo", ["test"])
+            for attempt in range(3):
+                case.begin_verification(
+                    root,
+                    subjects=[root / "acceptance.md"],
+                    note=f"Attempt {attempt + 1}",
+                )
+                case.set_gate(
+                    root,
+                    "independent_verification",
+                    "fail",
+                    "",
+                    f"Attempt {attempt + 1} found accepted gaps",
+                    [],
+                )
+            with self.assertRaisesRegex(case.CaseError, "budget exhausted"):
+                case.begin_verification(
+                    root,
+                    subjects=[root / "acceptance.md"],
+                    note="Forbidden fourth pass",
+                )
+            _, data = case.load(root)
+            self.assertEqual(data["verification"]["status"], "feedback_required")
+            self.assertEqual(data["lanes"]["test"]["state"], "blocked")
+
+    def test_init_binds_vigers_delivery_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "case"
+            prepare_context(root, {"test": ["test-design"]})
+            (root / case.DELIVERY_HANDOFF).write_text(
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "case_id": "V-1",
+                        "spec_revision": 7,
+                        "spec_fingerprint": "a" * 64,
+                        "acceptance_fingerprint": "b" * 64,
+                        "implementation_transition": {"mode": "evolve-in-place"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            data = case.init_case(root, "D-15", "accept", "demo", ["test"])
+            self.assertEqual(data["verification"]["source_revision"], "vigers:V-1@7")
+
+    def test_feedback_is_one_complete_batch_per_source_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "case"
+            prepare_context(root, {"test": ["test-design"]})
+            (root / case.DELIVERY_HANDOFF).write_text(
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "case_id": "V-2",
+                        "spec_revision": 4,
+                        "spec_fingerprint": "c" * 64,
+                        "acceptance_fingerprint": "d" * 64,
+                        "implementation_transition": {"mode": "evolve-in-place"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            case.init_case(root, "D-16", "accept", "demo", ["test"])
+            case.begin_verification(
+                root,
+                subjects=[root / "acceptance.md"],
+                note="Find all spec gaps",
+            )
+            evidence = root / "reports" / "verification.md"
+            evidence.write_text("# Findings\n\nTwo accepted gaps.\n", encoding="utf-8")
+            payload = case.record_feedback_batch(
+                root,
+                gaps=["GAP-001 missing timeout", "GAP-002 missing rollback condition"],
+                evidence=[evidence],
+                note="Complete accepted batch",
+            )
+            self.assertTrue(payload["batch_complete"])
+            self.assertEqual(payload["target_spec_revision"], 4)
+            with self.assertRaisesRegex(case.CaseError, "already has a feedback batch"):
+                case.record_feedback_batch(
+                    root,
+                    gaps=["GAP-003 late finding"],
+                    evidence=[evidence],
+                    note="Must not fragment feedback",
+                )
+            next_handoff = Path(temporary) / "delivery-handoff-r5.json"
+            next_handoff.write_text(
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "case_id": "V-2",
+                        "spec_revision": 5,
+                        "spec_fingerprint": "e" * 64,
+                        "acceptance_fingerprint": "f" * 64,
+                        "implementation_transition": {"mode": "evolve-in-place"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            migrated = case.migrate_source_handoff(
+                root,
+                handoff=next_handoff,
+                note="Vigers resolved the complete feedback batch",
+            )
+            self.assertEqual(migrated["source_revision"], "vigers:V-2@5")
+            _, data = case.load(root)
+            self.assertEqual(data["verification"]["attempts"], 0)
+            self.assertIsNone(data["verification"]["feedback_batch"])
 
 
 if __name__ == "__main__":

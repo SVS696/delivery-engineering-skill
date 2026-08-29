@@ -77,6 +77,9 @@ planned -> designing -> designed -> ready -> verifying -> verified
 
 Gate имеет `pending | pass | fail | not_required | stale`, evidence, note и
 subject fingerprint. `not_required` требует причины.
+В schema-3 `independent_verification` и `project_conformance` дополнительно
+связаны с конкретным completed `delivery-tester` run нужного role mode, тем же
+subject SHA-256 и точным immutable output artifact.
 
 ## Инвалидация
 
@@ -86,6 +89,21 @@ subject fingerprint. `not_required` требует причины.
   conformance, project checks и traceability.
 - Изменение testware после verification инвалидирует verification и traceability.
 - Чат не восстанавливает pass: только повторный запуск на новом fingerprint.
+- `show`, `context` и `validate` сначала reconciliруют fingerprints: изменённый
+  PASS сохраняется как `stale` в manifest/status, а не остаётся зелёным текстом.
+
+## Бюджет verification и обратная связь
+
+`begin-verification` фиксирует exact subject и увеличивает счётчик текущей
+source revision. Допустимы три полных assignment: initial и два correction.
+Четвёртый блокируется. Spec gaps из исчерпанного или явно остановленного цикла
+передаются одной командой `record-feedback --gap ... --evidence ...`; она
+создаёт один immutable `feedback-batches/FB-*.json` с `batch_complete=true` и
+блокирует дальнейшее verification до новой Vigers source revision.
+После того как Vigers экспортировал более новую revision, команда
+`migrate-source-handoff` архивирует прежний handoff, связывает новый, помечает
+зависимые PASS как `stale` и сбрасывает verification budget ровно для новой
+revision.
 
 ## Final invariants
 
