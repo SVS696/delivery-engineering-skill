@@ -169,3 +169,20 @@ semantic owner и уже назначенную tester surface. Только е�
    terminal level не запускай дополнительный review/check без нового evidence.
 
 **Выход:** фактическое состояние без смешения implementation и delivery.
+
+## Фаза 10. Независимый аудит процесса
+
+**Вход:** первый terminal/interrupted исход текущего delivery cycle и неизменяемые
+evidence предыдущих фаз.
+
+1. Прочитай `references/process-audit-integration.md` и собери episode до любых
+   процессных исправлений. Для `user_stopped` не продолжай продуктовую работу.
+2. Передай episode, bounded evidence, версии фактически использованных скиллов,
+   agent-ledger и временную reconciliation независимому Process Auditor. Delivery
+   tester не может быть этим аудитором, если участвовал в исходном cycle.
+3. Сохрани `KEEP`, execution/process defect, external failure либо evidence gap.
+   Не добавляй remediation или review только ради заполнения аудита.
+4. Shadow candidate не применяется в этом cycle. Изменение скилла требует
+   отдельного human decision, frozen replay и regression verification.
+
+**Выход:** evidence-bound process verdict без изменения terminal delivery state.

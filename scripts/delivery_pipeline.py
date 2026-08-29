@@ -207,6 +207,7 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
         "references/knowledge-map.md",
         "references/source-registry.md",
         "references/prompt-standard.md",
+        "references/process-audit-integration.md",
         "scripts/delivery_case.py",
         "scripts/delivery_context.py",
         "scripts/prompt_audit.py",
@@ -220,7 +221,7 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
 
     try:
         workflow = safe_file("workflows/delivery-pipeline.md").read_text(encoding="utf-8")
-        for phase in range(1, 10):
+        for phase in range(1, 11):
             if f"## Фаза {phase}." not in workflow:
                 errors.append(f"delivery-pipeline.md: missing phase {phase}")
         for invariant in ("### Process YAGNI", "лестницу реализации", "protected floor", "root_owner"):
@@ -237,6 +238,7 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
             "{baseDir}/workflows/delivery-pipeline.md",
             "{baseDir}/references/delivery-handoff.md",
             "{baseDir}/references/case-state.md",
+            "{baseDir}/references/process-audit-integration.md",
             "{baseDir}/references/knowledge-map.md",
             "{baseDir}/scripts/delivery_pipeline.py",
             "{baseDir}/scripts/delivery_context.py",
