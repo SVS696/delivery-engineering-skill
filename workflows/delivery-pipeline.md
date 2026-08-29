@@ -121,7 +121,8 @@ semantic owner и уже назначенную tester surface. Только е�
 код/CI/стенд и developer reports.
 
 1. После готовности dev lanes заново получи `context --lane test` и запусти
-   нового tester `verification`.
+   нового tester `verification`. До вызова выполни `begin-verification` с exact
+   subject и передай полученный SHA-256 в agent ledger.
 2. Проверяй persisted/live result; preview, mergeability и HTTP 200 сами по себе
    недостаточны.
 3. Классифицируй defect/spec gap/environment blocker/coverage gap/baseline.
@@ -131,6 +132,9 @@ semantic owner и уже назначенную tester surface. Только е�
 5. После исправления повтори defect и regression neighborhood новым запуском.
 6. После штатной классификации findings добавь verification receipt; не запускай
    отдельный review ради заполнения метрики.
+7. Initial verification плюс два correction passes — предел одной source
+   revision. Затем объедини все accepted spec gaps в один `record-feedback`
+   batch; не возвращай их в Vigers по одному.
 
 **Выход:** `verified`, `failed`, `partial` или `blocked` с evidence.
 
@@ -146,7 +150,9 @@ semantic owner и уже назначенную tester surface. Только е�
    superseded routes/config/flags/tests/docs удалены либо точно ограничены
    принятой стадией и retirement trigger.
 5. Если после review изменился subject, затронутые gates становятся stale.
-6. Выполни `delivery_case.py validate --final`.
+6. Свяжи conformance PASS с отдельным свежим tester run и exact output artifact.
+7. Выполни `delivery_case.py validate --final`; команда сначала сохраняет
+   effective stale state.
 
 **Выход:** локальная поставка готова к следующему внешнему gate.
 

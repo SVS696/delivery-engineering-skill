@@ -31,6 +31,10 @@ implementation_transition:
 
 Если ID отсутствуют, используй стабильные локальные IDs внутри case. Нельзя
 передавать роли только пересказ чата.
+Для Vigers-authored case вход материализуется файлом `delivery-handoff.json`
+schema 1 с `case_id`, положительным `spec_revision`, `spec_fingerprint` и
+`acceptance_fingerprint`. Delivery связывает SHA-256 самого файла и не принимает
+молча изменившийся handoff. Standalone case явно получает `standalone:1`.
 `implementation_transition` обязателен для нового Vigers handoff. В legacy или
 standalone handoff его отсутствие разрешает только `evolve-in-place`, если
 recon доказывает одного текущего owner и не вводится replacement/coexistence.
