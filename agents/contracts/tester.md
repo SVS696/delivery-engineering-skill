@@ -31,6 +31,10 @@ base/head: revmux получает архивированный diff и hashed m
 scope/AC/conformance, lane basis, frozen project profile и явно переданных
 repository instructions. Свободный prose prompt без этого context artifact не
 считается bounded входом reviewer.
+Перед `prepare` загрузи caller skill `revmux` активного runtime: установленный
+Codex skill либо `revmux:revmux` из включённого Claude Code plugin
+`revmux@revmux`; Claude reviewer обязан явно вызвать его через `Skill`. Если
+caller-интеграция недоступна, верни dependency blocker без fallback на native.
 
 Это правило относится только к `conformance`. Режимы `test-design`,
 `test-automation` и особенно `verification` сохраняют текущий контракт и не

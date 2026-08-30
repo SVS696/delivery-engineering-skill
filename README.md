@@ -51,16 +51,22 @@ Installer подключает skill в Codex/Claude discovery и три име�
 ### Опциональная зависимость revmux
 
 Native conformance работает без внешней зависимости. Явный
-`review_backend: revmux` требует бинарь и Codex skill
+`review_backend: revmux` требует бинарь и caller-интеграцию активного
+reviewer runtime из
 [umputun/revmux](https://github.com/umputun/revmux) из совместимой ревизии
 `33ede7aaf632cebbde08f2dd53ffa06c4722d81b`. Это compatibility pin текущей
-интеграции, а не временный тип Delivery case.
-`scripts/revmux_review.py prepare` fail-closed проверяет `revmux --version`,
-архивирует exact diff и сохраняет dependency version в review context;
-отсутствующая или иная сборка не подменяется native review молча.
+интеграции, а не временный тип Delivery case. Для Codex нужен установленный
+skill `revmux` из `plugins/codex/skills/revmux`; для Claude Code — включённый
+plugin `revmux@revmux` версии `0.4.3`, содержащий skill `revmux:revmux`; Claude
+reviewer предзагружает его через agent frontmatter и явно вызывает через
+`Skill` tool. Профили revmux также запускают Claude subprocesses, поэтому им
+нужен доступный и аутентифицированный `claude` CLI.
 
-Бинарь и skill устанавливаются отдельно по upstream-инструкции. Один локальный
-checkout без доступного в `PATH` бинаря и discovery skill не считается
+`scripts/revmux_review.py prepare` fail-closed проверяет `revmux --version`,
+архивирует exact diff и сохраняет dependency version в review context.
+Reviewer adapter отдельно требует caller skill/plugin своего runtime;
+отсутствие любого компонента или иная ревизия останавливает revmux assignment
+без тихого fallback на native. Один локальный checkout не считается
 установленной зависимостью.
 
 ## Профиль проекта
