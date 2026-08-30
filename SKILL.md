@@ -53,8 +53,9 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
     `{baseDir}/references/revmux-review-backend.md`: вызывает revmux, но не
     добавляет собственный model-review и не запускает цикл. Native conformance
     и revmux для одного gate взаимоисключающие, кроме отдельного сравнительного
-    замера. Opt-in fail-closed зависит от binary+skill revmux совместимой
-    ревизии `33ede7aaf632cebbde08f2dd53ffa06c4722d81b`; default не меняется до
+    замера. Opt-in fail-closed зависит от бинаря и caller-интеграции активного
+    runtime: Codex skill либо Claude Code plugin `revmux@revmux`, совместимых с
+    ревизией `33ede7aaf632cebbde08f2dd53ffa06c4722d81b`; default не меняется до
     ручного решения после 3–5 кейсов.
 
 ## Когда применять

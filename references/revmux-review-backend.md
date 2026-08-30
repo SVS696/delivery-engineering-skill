@@ -26,12 +26,23 @@ output artifact сохраняется без нового gate.
 ## Opt-in dependency
 
 Native conformance не зависит от revmux. Выбранный `review_backend: revmux`
-fail-closed требует бинарь `revmux` в `PATH` и установленный Codex skill revmux
-из той же совместимой ревизии. Текущий compatibility pin:
+fail-closed требует бинарь `revmux` в `PATH` и caller-интеграцию активного
+reviewer runtime из той же совместимой ревизии:
+
+- Codex reviewer загружает установленный skill `revmux` из
+  `plugins/codex/skills/revmux`;
+- Claude Code reviewer предзагружает skill `revmux:revmux` из включённого
+  plugin `revmux@revmux` версии `0.4.3` через agent frontmatter и явно вызывает
+  его через `Skill` tool.
+
+Skill-local профили запускают Claude subprocesses, поэтому независимо от caller
+им нужен доступный и аутентифицированный `claude` CLI. Текущий compatibility pin:
 `33ede7aaf632cebbde08f2dd53ffa06c4722d81b`; ожидаемый `revmux --version`
 содержит `33ede7a`. `revmux_review.py prepare` проверяет бинарь и записывает его
-resolved path, version и pin в immutable context. Отсутствующая либо иная
-ревизия не запускает ни revmux, ни тихий native fallback.
+resolved path, version и pin в immutable context; reviewer adapter отдельно
+проверяет доступность caller skill/plugin. Отсутствующий компонент либо иная
+ревизия не запускает ни revmux, ни тихий native fallback. Один checkout
+исходников без этих подключений не считается установленной зависимостью.
 
 Skill-local профили сохраняют стандартные имена и severity semantics revmux,
 но заменяют recursive Codex slot отдельным Claude subprocess. Panel separation

@@ -185,6 +185,14 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
             for field in ("name", "description", "developer_instructions"):
                 if not isinstance(parsed.get(field), str) or not parsed[field].strip():
                     errors.append(f"{codex}: missing string field {field}")
+            if role == "tester":
+                instructions = parsed.get("developer_instructions", "")
+                for marker in (
+                    "установленный Codex skill `revmux`",
+                    "dependency blocker",
+                ):
+                    if marker not in instructions:
+                        errors.append(f"{codex}: missing revmux caller marker {marker}")
         except (PipelineError, tomllib.TOMLDecodeError) as exc:
             errors.append(f"{codex}: {exc}")
         try:
@@ -194,6 +202,15 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
             for field in ("name:", "description:", "tools:"):
                 if field not in body:
                     errors.append(f"{claude}: missing frontmatter field {field}")
+            if role == "tester":
+                for marker in (
+                    "tools: Read, Grep, Glob, Edit, Write, Bash, Skill",
+                    "skills:\n  - revmux:revmux",
+                    "через `Skill`",
+                    "dependency blocker",
+                ):
+                    if marker not in body:
+                        errors.append(f"{claude}: missing revmux caller marker {marker}")
         except PipelineError as exc:
             errors.append(str(exc))
 
