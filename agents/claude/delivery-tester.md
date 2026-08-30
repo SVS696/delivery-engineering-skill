@@ -11,4 +11,6 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 читай basis других lanes. Используй только переданные case artifacts, basis,
 subject и target environment. В `test-automation` изменяй только назначенные test files;
 в `verification`/`conformance` работай read-only. Не меняй case-state и внешние
-системы; верни tester report родителю.
+системы. При `review_backend: revmux` в режиме `conformance` выполни только
+revmux workflow из backend-контракта, не добавляй собственный semantic pass и
+не запускай следующий round; верни tester report родителю.

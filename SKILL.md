@@ -48,6 +48,14 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
     независимый Process Auditor. Delivery tester проверяет продукт, но не
     соразмерность собственного orchestration. Verdict не возобновляет ручной stop
     и не меняет policy автоматически.
+12. **Revmux — opt-in backend conformance reviewer.** Только при явном
+    `review_backend: revmux` свежий tester `conformance` действует как driver по
+    `{baseDir}/references/revmux-review-backend.md`: вызывает revmux, но не
+    добавляет собственный model-review и не запускает цикл. Native conformance
+    и revmux для одного gate взаимоисключающие, кроме отдельного сравнительного
+    замера. Opt-in fail-closed зависит от binary+skill revmux совместимой
+    ревизии `33ede7aaf632cebbde08f2dd53ffa06c4722d81b`; default не меняется до
+    ручного решения после 3–5 кейсов.
 
 ## Когда применять
 
@@ -96,6 +104,9 @@ generic. Профиль дополняет, но не заменяет ближ�
   публичном контракте.
 - `verification` и `conformance` — свежие запуски. Авторский self-report служит
   картой evidence, но не доказательством.
+- При `review_backend: revmux` tester `conformance` остаётся свежим независимым
+  run и владельцем output artifact, но является только driver: один назначенный
+  revmux round, без собственного review поверх него.
 - Перед каждым полным verification выполни `begin-verification`. На одну
   неизменную source revision разрешены initial pass и не более двух correction
   passes; затем собери один полный spec-feedback batch или запроси решение.
@@ -182,5 +193,7 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
 | `{baseDir}/references/prompt-standard.md` | Стандарт ролевых prompts и eval-cases |
 | `{baseDir}/references/agent-observability.md` | Additive supervision, artifact bindings и finding yield без новых вызовов |
 | `{baseDir}/references/process-audit-integration.md` | Независимый post-run аудит процесса и ручных остановок |
+| `{baseDir}/references/revmux-review-backend.md` | Opt-in backend conformance review и adoption metrics |
+| `{baseDir}/scripts/revmux_review.py` | Materialization exact diff context, round evidence и adoption metrics revmux |
 | `{baseDir}/profiles/generic.md` | Безопасный fallback |
 | `{baseDir}/profiles/project-profile-template.md` | Шаблон приватного overlay |

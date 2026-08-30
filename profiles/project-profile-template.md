@@ -34,6 +34,10 @@ floor и доказанные extension seams, которые нельзя уд�
 Опциональные review-lens aliases задавай как
 `stable-id@version → существующие contract inputs`; alias не создаёт новый gate.
 
+Opt-in `review_backend: revmux` задавай только в конкретном assignment или
+case-local decision. Профиль служит `input/profile.md` для project rules, но не
+включает backend глобально до ручного решения по 3–5 adoption cases.
+
 ## Тестирование и приёмка
 
 Test levels/types, environments, data, evidence и independence rules.

@@ -48,6 +48,21 @@ Installer подключает skill в Codex/Claude discovery и три име�
 Он выполняет полный preflight, не перетирает существующие targets и повторно
 запускается идемпотентно.
 
+### Опциональная зависимость revmux
+
+Native conformance работает без внешней зависимости. Явный
+`review_backend: revmux` требует бинарь и Codex skill
+[umputun/revmux](https://github.com/umputun/revmux) из совместимой ревизии
+`33ede7aaf632cebbde08f2dd53ffa06c4722d81b`. Это compatibility pin текущей
+интеграции, а не временный тип Delivery case.
+`scripts/revmux_review.py prepare` fail-closed проверяет `revmux --version`,
+архивирует exact diff и сохраняет dependency version в review context;
+отсутствующая или иная сборка не подменяется native review молча.
+
+Бинарь и skill устанавливаются отдельно по upstream-инструкции. Один локальный
+checkout без доступного в `PATH` бинаря и discovery skill не считается
+установленной зависимостью.
+
 ## Профиль проекта
 
 ```bash

@@ -80,6 +80,10 @@ subject fingerprint. `not_required` требует причины.
 В schema-3 `independent_verification` и `project_conformance` дополнительно
 связаны с конкретным completed `delivery-tester` run нужного role mode, тем же
 subject SHA-256 и точным immutable output artifact.
+При `review_backend: revmux` binding не меняется: tester `conformance` является
+driver одного revmux round, а его output содержит hashes report/manifest.
+Собственный tester model-review в этот run запрещён. Final gate связывается
+только с final driver run; initial report хранится как adoption evidence.
 
 ## Инвалидация
 

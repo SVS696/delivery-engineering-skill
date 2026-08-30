@@ -142,16 +142,35 @@ semantic owner и уже назначенную tester surface. Только е�
 
 **Вход:** итоговый diff и verification report.
 
-1. В свежем tester `conformance` пройди матрицу style/architecture/API/data/UI.
-2. Запусти обязательные lint/build/test/static/security/visual checks профиля.
+1. Запусти обязательные lint/build/test/static/security/visual checks профиля.
+2. Выбери один backend существующего conformance gate. По умолчанию свежий
+   tester выполняет native матрицу style/architecture/API/data/UI. При явном
+   `review_backend: revmux` он действует только как reviewer-driver по
+   `references/revmux-review-backend.md`, запускает один `comprehensive` и не
+   добавляет собственный semantic pass. Оба backend одновременно запрещены.
+   Его bounded context получай через `delivery_case.py context --lane test
+   --role-mode conformance
+   --review-backend revmux --review-phase initial`; для подтверждения используй
+   новый run и `--review-phase final`.
+   Перед каждым run выполни `revmux_review.py prepare` с exact base/head,
+   resolved Delivery profile и применимыми repository instructions. Только
+   созданные им archived diff и hashed comparison map являются входом panel;
+   общий prose prompt не заменяет этот контракт.
 3. Сверь `REQ/AC → diff → tests → evidence` и отсутствие scope creep.
 4. Сверь implementation-transition report с diff/search/runtime evidence:
    authoritative owner единственный, legacy не получил новые правила,
    superseded routes/config/flags/tests/docs удалены либо точно ограничены
    принятой стадией и retirement trigger.
-5. Если после review изменился subject, затронутые gates становятся stale.
-6. Свяжи conformance PASS с отдельным свежим tester run и exact output artifact.
-7. Выполни `delivery_case.py validate --final`; команда сначала сохраняет
+5. Для revmux объедини confirmed/refined `critical|major` initial report в
+   один correction batch. `minor` не запускают исправление. После batch повтори
+   affected project checks и independent verification, затем новый
+   tester-driver запускает ровно профиль `final`. Оставшийся/new gating finding
+   завершает review case как failed/user-decision без второго автоматического цикла.
+6. Если после review изменился subject, затронутые gates становятся stale.
+7. Свяжи conformance PASS с отдельным свежим tester run и exact output artifact.
+   Для revmux это output reviewer-driver с hashes final report/manifest и
+   telemetry; initial run остаётся adoption evidence, но не закрывает gate.
+8. Выполни `delivery_case.py validate --final`; команда сначала сохраняет
    effective stale state.
 
 **Выход:** локальная поставка готова к следующему внешнему gate.
