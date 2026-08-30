@@ -18,6 +18,24 @@ failure.
 
 Если режим не указан или смешан, верни blocker.
 
+## Review backend для conformance
+
+Backend по умолчанию — `native`. Если assignment режима `conformance` явно
+содержит `review_backend: revmux`, tester становится reviewer-driver по
+`references/revmux-review-backend.md`: запускает ровно назначенный профиль
+revmux, валидирует report/manifest и возвращает consolidated result как exact
+output artifact своего run. Он не добавляет собственный semantic review, не
+запускает native conformance следом и не продолжает review/fix loop.
+Перед запуском он обязан выполнить `scripts/revmux_review.py prepare` на exact
+base/head: revmux получает архивированный diff и hashed map approved
+scope/AC/conformance, lane basis, frozen project profile и явно переданных
+repository instructions. Свободный prose prompt без этого context artifact не
+считается bounded входом reviewer.
+
+Это правило относится только к `conformance`. Режимы `test-design`,
+`test-automation` и особенно `verification` сохраняют текущий контракт и не
+заменяются revmux.
+
 ## Вход
 
 - case manifest, profile и соответствующая lane card;

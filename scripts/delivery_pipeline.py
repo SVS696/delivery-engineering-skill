@@ -208,9 +208,13 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
         "references/source-registry.md",
         "references/prompt-standard.md",
         "references/process-audit-integration.md",
+        "references/revmux-review-backend.md",
+        "revmux/prompts/profiles/comprehensive.md",
+        "revmux/prompts/profiles/final.md",
         "scripts/delivery_case.py",
         "scripts/delivery_context.py",
         "scripts/prompt_audit.py",
+        "scripts/revmux_review.py",
         "scripts/install.py",
     )
     for relative in required:
@@ -239,11 +243,13 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
             "{baseDir}/references/delivery-handoff.md",
             "{baseDir}/references/case-state.md",
             "{baseDir}/references/process-audit-integration.md",
+            "{baseDir}/references/revmux-review-backend.md",
             "{baseDir}/references/knowledge-map.md",
             "{baseDir}/scripts/delivery_pipeline.py",
             "{baseDir}/scripts/delivery_context.py",
             "{baseDir}/scripts/delivery_case.py",
             "{baseDir}/scripts/prompt_audit.py",
+            "{baseDir}/scripts/revmux_review.py",
         ):
             if link not in skill:
                 errors.append(f"SKILL.md missing link: {link}")

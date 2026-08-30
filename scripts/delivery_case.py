@@ -30,6 +30,7 @@ MAX_VERIFICATION_ATTEMPTS = 3
 CASE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 INTENTS = {"implement", "accept", "test-design"}
 LANES = {"backend", "frontend", "test"}
+TEST_ROLE_MODES = {"test-design", "test-automation", "verification", "conformance"}
 DEV_LANES = {"backend", "frontend"}
 GATES = (
     "authorization",
@@ -896,11 +897,31 @@ def validate_case(root: Path, final: bool) -> dict[str, Any]:
     }
 
 
-def context_bundle(root: Path, lane: str) -> dict[str, Any]:
+def context_bundle(
+    root: Path,
+    lane: str,
+    review_backend: str = "native",
+    review_phase: str | None = None,
+    role_mode: str | None = None,
+) -> dict[str, Any]:
     validate_case(root, False)
     case_root, data = load(root)
     if lane not in data["lanes"]:
         raise CaseError(f"Lane is not active: {lane}")
+    if review_backend not in {"native", "revmux"}:
+        raise CaseError(f"Unknown review backend: {review_backend}")
+    if review_backend == "revmux":
+        if lane != "test":
+            raise CaseError("revmux review backend is available only to the test lane")
+        if role_mode != "conformance":
+            raise CaseError("revmux review backend requires role_mode=conformance")
+        if review_phase not in {"initial", "final"}:
+            raise CaseError("revmux backend requires review_phase=initial|final")
+    elif review_phase is not None:
+        raise CaseError("review_phase is valid only with review_backend=revmux")
+    if role_mode is not None:
+        if lane != "test" or role_mode not in TEST_ROLE_MODES:
+            raise CaseError("role_mode is valid only for a supported test-lane mode")
     binding = data.get("engineering_context")
     if not isinstance(binding, dict):
         raise CaseError("Lane context requires recorded engineering context")
@@ -932,6 +953,27 @@ def context_bundle(root: Path, lane: str) -> dict[str, Any]:
         "intent": data["intent"],
         "lane": lane,
         "role": role,
+        "role_mode": role_mode,
+        "review_backend": review_backend,
+        "review_phase": review_phase,
+        "revmux_profile": (
+            "comprehensive"
+            if review_backend == "revmux" and review_phase == "initial"
+            else (
+                "final"
+                if review_backend == "revmux" and review_phase == "final"
+                else None
+            )
+        ),
+        "covered_gates": ["project_conformance"] if role_mode == "conformance" else [],
+        "contract_inputs": [
+            "agents/contracts/tester.md" if lane == "test" else f"agents/contracts/{lane}.md",
+            *(
+                ["references/revmux-review-backend.md"]
+                if review_backend == "revmux"
+                else []
+            ),
+        ],
         "basis_routes": lane_binding["route_ids"],
         "allowed_inputs": allowed,
         "external_inputs": [
@@ -962,6 +1004,13 @@ def parser() -> argparse.ArgumentParser:
     context = commands.add_parser("context")
     context.add_argument("--case-root", type=Path, required=True)
     context.add_argument("--lane", choices=sorted(LANES), required=True)
+    context.add_argument(
+        "--review-backend",
+        choices=("native", "revmux"),
+        default="native",
+    )
+    context.add_argument("--review-phase", choices=("initial", "final"))
+    context.add_argument("--role-mode", choices=sorted(TEST_ROLE_MODES))
     move = commands.add_parser("transition")
     move.add_argument("--case-root", type=Path, required=True)
     move.add_argument("--lane", choices=sorted(LANES), required=True)
@@ -1009,7 +1058,13 @@ def main() -> int:
         elif args.command == "show":
             result, _ = reconcile_subjects(args.case_root)
         elif args.command == "context":
-            result = context_bundle(args.case_root, args.lane)
+            result = context_bundle(
+                args.case_root,
+                args.lane,
+                args.review_backend,
+                args.review_phase,
+                args.role_mode,
+            )
         elif args.command == "transition":
             result = transition(args.case_root, args.lane, args.to, args.note)
         elif args.command == "set-gate":

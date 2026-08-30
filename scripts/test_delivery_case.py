@@ -128,6 +128,29 @@ class DeliveryCaseTests(unittest.TestCase):
             self.assertNotIn("agent-ledger.json", bundle["allowed_inputs"])
             self.assertEqual(bundle["basis_routes"], ["backend-http"])
 
+    def test_revmux_context_is_explicit_and_test_lane_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "case"
+            prepare_context(
+                root,
+                {"backend": ["backend-http"], "test": ["test-design"]},
+            )
+            case.init_case(root, "D-10R", "implement", "demo", ["backend", "test"])
+            bundle = case.context_bundle(
+                root, "test", "revmux", "initial", "conformance"
+            )
+            self.assertEqual(bundle["review_backend"], "revmux")
+            self.assertEqual(bundle["revmux_profile"], "comprehensive")
+            self.assertEqual(bundle["covered_gates"], ["project_conformance"])
+            self.assertIn(
+                "references/revmux-review-backend.md",
+                bundle["contract_inputs"],
+            )
+            with self.assertRaises(case.CaseError):
+                case.context_bundle(
+                    root, "backend", "revmux", "initial", "conformance"
+                )
+
     def test_agent_observability_is_additive_and_auditable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "case"
