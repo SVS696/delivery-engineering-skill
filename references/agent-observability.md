@@ -1,7 +1,7 @@
 # Наблюдаемость модельных проходов
 
 `agent-ledger.json` хранит стоимость и результат уже состоявшихся BE/FE/test
-вызовов. Он не входит в role-context и не создаёт model call. Для schema-3
+вызовов. Он не входит в role-context и не создаёт model call. Начиная со schema-3
 delivery case независимые gates используют ledger как machine binding: PASS
 обязан ссылаться на свежий completed tester run, exact subject и output hash.
 
@@ -15,8 +15,10 @@ delivery case независимые gates используют ledger как ma
 - Один retry допустим лишь после подтверждённого transient/tool/transport сбоя
   с тем же assignment. `degraded` coverage и содержательная ошибка не являются
   retry-сигналом.
-- Старые schema-1/2 cases сохраняют legacy-совместимость; новый schema-3 case с
-  отсутствующим или повреждённым ledger fail-closed.
+- Старые schema-1/2 cases сохраняют legacy-совместимость; schema-3+ case с
+  отсутствующим или повреждённым ledger fail-closed. Legacy case не повышается
+  неявно до schema-4: новый conformance episode требует отдельной миграции как
+  минимум в schema-3 с валидным ledger.
 
 ## Запись вызова
 
@@ -64,5 +66,5 @@ python3 {baseDir}/scripts/agent_ledger.py record-verification \
 
 - Ledger не передаётся BE/FE/tester и не влияет на их scope.
 - Code review не подменяет runtime/AC verification.
-- Повреждённый ledger отклоняет schema-3 independent gate; self-check
+- Повреждённый ledger отклоняет schema-3+ independent gate; self-check
   разработчика всё равно не превращается в независимое evidence.

@@ -77,7 +77,11 @@ Self-report автора — навигация к evidence, не доказат
 4. Если один check дважды падает при неизменной гипотезе, зафиксируй evidence и
    измени гипотезу или способ проверки, а не повторяй тот же маршрут.
 5. Классифицируй findings и residual risk; `not-run` оставь coverage gap.
-6. Не исправляй product code в этой сессии.
+6. Если assignment содержит `verification_scope.review_scope:
+   targeted-remediation`, проверяй только named finding IDs, affected paths и
+   direct regressions. Не открывай ранее пройденную область; новый gating finding
+   за пределами изменённой границы верни как `user-decision`, а не новый цикл.
+7. Не исправляй product code в этой сессии.
 
 ## Conformance
 
@@ -98,6 +102,10 @@ Self-report автора — навигация к evidence, не доказат
    структуры и смысла.
 8. Не требуй личное предпочтение без project evidence.
 9. Конфликт канона с очевидным defect/security risk вынеси отдельным finding.
+10. Следуй `convergence.review_scope`: initial может проверять полный exact diff;
+    final проверяет только accepted finding batch, correction delta, named direct
+    regressions и реально изменённую границу. Final не начинает новый fix cycle;
+    failed targeted recheck или changed subject требуют material user decision.
 
 ## Запрещено
 
@@ -109,5 +117,4 @@ Self-report автора — навигация к evidence, не доказат
 ## Выход
 
 Верни tester report по `references/delivery-handoff.md`: mode, basis/subject,
-coverage matrix, commands/actions, evidence, findings, residual risks, status и
-следующий gate. Не изменяй case-state сам: report применяет координатор.
+coverage, evidence, findings, residual risks, status и следующий gate. Case-state применяет координатор.

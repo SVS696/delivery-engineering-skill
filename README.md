@@ -90,9 +90,13 @@ Capabilities перечисляются явно: `backend`, `frontend`, `test`.
 Не создавай MR и не деплой.
 ```
 
-Case-state хранит lane statuses, gates, revisions, fingerprints и отдельную
-инженерную базу каждой роли, поэтому работу можно продолжить в новых контекстах
-без пересказа чата.
+Case-state хранит lane statuses, gates, revisions, fingerprints, отдельную
+инженерную базу каждой роли и conformance convergence episode. Initial review,
+один finding-bound correction batch и final являются разрешёнными переходами,
+а не свободно повторяемыми prompts, поэтому работу можно продолжить в новых
+контекстах без пересказа чата и без повторного полного цикла. Failed targeted
+recheck, scope expansion и drift frozen subject останавливаются в
+`user-decision`; новый episode требует material evidence и affected rechecks.
 
 ## Skill-native инженерная база
 

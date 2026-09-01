@@ -31,7 +31,7 @@
 Создаются только нужные lane cards. Пустая FE/BE lane запрещена.
 
 До `init` case-root содержит только `engineering-context.json` и basis активных
-lanes, созданные `delivery_context.py materialize`. Новый manifest schema v2
+lanes, созданные `delivery_context.py materialize`. Manifest schema v4
 связывает общий fingerprint, route IDs и content hashes. `init` проверяет
 snapshot по текущим skill-native выжимкам; дальнейшая `validate` проверяет его
 неизменность относительно manifest. Ручное изменение basis или sidecar делает
@@ -77,13 +77,84 @@ planned -> designing -> designed -> ready -> verifying -> verified
 
 Gate имеет `pending | pass | fail | not_required | stale`, evidence, note и
 subject fingerprint. `not_required` требует причины.
-В schema-3 `independent_verification` и `project_conformance` дополнительно
+Начиная со schema-3 `independent_verification` и `project_conformance`
+дополнительно
 связаны с конкретным completed `delivery-tester` run нужного role mode, тем же
 subject SHA-256 и точным immutable output artifact.
 При `review_backend: revmux` binding не меняется: tester `conformance` является
 driver одного revmux round, а его output содержит hashes report/manifest.
-Собственный tester model-review в этот run запрещён. Final gate связывается
-только с final driver run; initial report хранится как adoption evidence.
+Собственный tester model-review в этот run запрещён. Schema-4 также требует
+terminal PASS `manifest.conformance`: при чистом initial gate связывается с
+initial run, после correction batch — с final run.
+
+## Conformance convergence
+
+Native и revmux используют одну сохраняемую state machine:
+
+```text
+idle
+  -> initial-running
+       -> terminal(PASS)
+       -> remediation
+            -> final-ready
+            -> final-running
+                 -> terminal(PASS)
+                 -> user-decision
+       -> user-decision
+  <- user-decision -- resume-conformance + material impact evidence
+
+initial-running | final-ready | final-running | terminal(PASS)
+  -- bound subject changed --> user-decision
+
+remediation
+  -- scope expansion / manual stop --> user-decision
+  -- targeted verification FAIL --> user-decision
+```
+
+- `begin-conformance` разрешён только после актуальных `project_checks`,
+  `independent_verification` и состояния test lane `verified`.
+- Повторное чтение active initial возвращает тот же `assignment_id`; другой
+  subject/backend не создаёт новый run.
+- `record-conformance-review` принимает exact completed tester run и immutable
+  output. Initial `critical|major` открывают ровно один correction batch с
+  finding IDs и affected repository paths. Чистый initial PASS терминален.
+- Accepted findings немедленно делают affected checks/verification stale.
+  Их повтор выполняется как `targeted-remediation`, а не новый full assignment.
+- `complete-conformance-remediation` связывает corrected subject, remediation
+  evidence, changed paths и direct regressions. Changed path вне initial
+  affected scope запрещён; `request-conformance-decision` явно завершает такой
+  episode в `user-decision`, вместо тупика или скрытого расширения batch.
+- Final assignment проверяет finding batch, correction delta и direct
+  regressions. Любой gating finding переводит episode в `user-decision` без
+  второго automatic batch.
+- `resume-conformance` требует case-local user evidence и подтверждённый impact
+  `scope|architecture|baseline`; он инвалидирует affected checks, сбрасывает
+  verification budget для явно принятого нового baseline и только затем
+  разрешает новый episode.
+- Изменение frozen subject в active/terminal episode автоматически сохраняется
+  как `user-decision`. Оно не открывает новый full review без material user
+  evidence.
+- Runner/transport retry не создаёт новый transition: используется тот же
+  frozen assignment.
+
+```text
+python3 {baseDir}/scripts/delivery_case.py begin-conformance \
+  --case-root <case> --review-backend native|revmux --subject <file>
+python3 {baseDir}/scripts/delivery_case.py record-conformance-review \
+  --case-root <case> --run-id <AR-id> --decision revise \
+  --evidence reports/conformance-initial.md \
+  --finding CF-001=major --affected-path src/affected.py
+python3 {baseDir}/scripts/delivery_case.py complete-conformance-remediation \
+  --case-root <case> --evidence reports/remediation.md --subject <file> \
+  --changed-path src/affected.py --direct-regression tests/test_affected.py
+python3 {baseDir}/scripts/delivery_case.py request-conformance-decision \
+  --case-root <case> --evidence reports/scope-expansion.md \
+  --reason scope-expansion --affected-path src/new-boundary.py \
+  --note "correction exceeds the accepted boundary"
+python3 {baseDir}/scripts/delivery_case.py resume-conformance \
+  --case-root <case> --evidence reports/user-decision.md \
+  --impact scope --note "approved distinct episode"
+```
 
 ## Инвалидация
 
@@ -94,13 +165,19 @@ driver одного revmux round, а его output содержит hashes repor
 - Изменение testware после verification инвалидирует verification и traceability.
 - Чат не восстанавливает pass: только повторный запуск на новом fingerprint.
 - `show`, `context` и `validate` сначала reconciliруют fingerprints: изменённый
-  PASS сохраняется как `stale` в manifest/status, а не остаётся зелёным текстом.
+  PASS сохраняется как `stale` в manifest/status, а изменённый subject active
+  conformance episode переводится в `user-decision`, а не остаётся зелёным или
+  застрявшим состоянием.
 
 ## Бюджет verification и обратная связь
 
 `begin-verification` фиксирует exact subject и увеличивает счётчик текущей
-source revision. Допустимы три полных assignment: initial и два correction.
-Четвёртый блокируется. Spec gaps из исчерпанного или явно остановленного цикла
+source revision. Полным может быть только initial assignment. После его FAIL
+допустим один recheck с exact `finding IDs + affected paths + direct
+regressions`. Ещё один targeted assignment используется только для accepted
+conformance correction batch; он наследует scope из `manifest.conformance`.
+Неудачный targeted recheck ставит `user-decision`; новый full pass блокируется.
+Spec gaps из исчерпанного или явно остановленного цикла
 передаются одной командой `record-feedback --gap ... --evidence ...`; она
 создаёт один immutable `feedback-batches/FB-*.json` с `batch_complete=true` и
 блокирует дальнейшее verification до новой Vigers source revision.
@@ -117,6 +194,8 @@ revision.
 - `test-design`: test `designed`; implementation/verification gates явно
   `not_required`, остальные применимые gates закрыты.
 - `blocked`, `failed`, `partial`, `stale` никогда не округляются до `pass`.
+- Для `implement|accept` `manifest.conformance` имеет `phase=terminal` и
+  `terminal_decision=pass`; gate связан с его terminal run и subject.
 
 ## Terminal green
 

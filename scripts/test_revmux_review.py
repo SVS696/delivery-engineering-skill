@@ -148,6 +148,15 @@ class RevmuxReviewTest(unittest.TestCase):
                         "review_backend": "revmux",
                         "review_phase": "initial",
                         "revmux_profile": "comprehensive",
+                        "subject_sha256": "c" * 64,
+                        "convergence": {
+                            "episode": 1,
+                            "phase": "initial-running",
+                            "review_scope": "full-stage",
+                            "finding_ids": [],
+                            "changed_paths": [],
+                            "direct_regressions": [],
+                        },
                         "covered_gates": ["project_conformance"],
                         "allowed_inputs": list(case_files),
                         "contract_inputs": list(contract_files),
@@ -204,6 +213,49 @@ class RevmuxReviewTest(unittest.TestCase):
                 f"{base_sha}..{head_sha}",
                 (input_root / "scope.md").read_text(encoding="utf-8"),
             )
+
+            final_payload = json.loads(assignment.read_text(encoding="utf-8"))
+            final_payload.update(review_phase="final", revmux_profile="final")
+            final_payload["convergence"] = {
+                "episode": 1,
+                "phase": "final-running",
+                "review_scope": "targeted-remediation",
+                "finding_ids": ["CF-001"],
+                "changed_paths": ["app.txt"],
+                "direct_regressions": ["app.txt"],
+            }
+            assignment.write_text(json.dumps(final_payload), encoding="utf-8")
+            final_root = root / "input-final"
+            final_root.mkdir()
+            final_args = argparse.Namespace(
+                **{
+                    **vars(args),
+                    "scope_output": final_root / "scope.md",
+                    "goal_output": final_root / "goal.md",
+                    "profile_output": final_root / "profile.md",
+                    "context_dir": final_root / "context",
+                }
+            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(review.prepare_round(final_args), 0)
+            final_scope = (final_root / "scope.md").read_text(encoding="utf-8")
+            self.assertIn("Verify findings: CF-001", final_scope)
+            self.assertIn("Correction paths: app.txt", final_scope)
+
+            final_payload["convergence"]["changed_paths"] = ["other.py"]
+            assignment.write_text(json.dumps(final_payload), encoding="utf-8")
+            mismatch_root = root / "input-final-mismatch"
+            mismatch_args = argparse.Namespace(
+                **{
+                    **vars(args),
+                    "scope_output": mismatch_root / "scope.md",
+                    "goal_output": mismatch_root / "goal.md",
+                    "profile_output": mismatch_root / "profile.md",
+                    "context_dir": mismatch_root / "context",
+                }
+            )
+            with self.assertRaisesRegex(review.EvidenceError, "diff differs"):
+                review.prepare_round(mismatch_args)
 
     def test_round_evidence_and_final_gate(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -273,6 +325,44 @@ class RevmuxReviewTest(unittest.TestCase):
             report.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaises(review.EvidenceError):
                 review.validate_round(report, manifest, "comprehensive")
+
+    def test_clean_initial_case_receipt_does_not_require_final(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            initial = root / "initial.json"
+            initial.write_text(
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "task": "clean-review",
+                        "phase": "initial",
+                        "subject_sha256": "a" * 64,
+                        "revmux_duration_ms": 100,
+                        "model_calls": 4,
+                        "revmux_tokens": 50,
+                        "confirmed_critical": 0,
+                        "confirmed_major": 0,
+                        "gating_areas": [],
+                        "decision": "pass",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = root / "receipt.json"
+            args = argparse.Namespace(
+                initial_metrics=initial,
+                final_metrics=None,
+                case_kind="delivery",
+                active_time_seconds=10,
+                driver_tokens=5,
+                correction_rounds=0,
+                output=output,
+            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(review.write_case(args), 0)
+            receipt = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(receipt["model_calls"], 4)
+            self.assertIsNone(receipt["final_metrics_sha256"])
 
     def test_case_and_three_case_aggregate(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

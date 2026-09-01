@@ -27,7 +27,7 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
 6. **Состояние переживает контекст.** `engineering-context.json`, отдельные
    `basis/<lane>.md`, `manifest.json`, lane cards и reports — handoff; история
    чата и самооценка агента не являются состоянием поставки.
-   `agent-ledger.json` не входит в bounded role-context, но schema-3 case
+   `agent-ledger.json` не входит в bounded role-context, но schema-4 case
    связывает независимые verification/conformance PASS с точным completed run,
    subject hash и неизменным output artifact.
 7. **Merge/deploy отдельно.** Локальный diff, commit/MR, merge, deploy/restart
@@ -57,6 +57,16 @@ allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Task TaskCreate Ta
     runtime: Codex skill либо Claude Code plugin `revmux@revmux`, совместимых с
     ревизией `33ede7aaf632cebbde08f2dd53ffa06c4722d81b`; default не меняется до
     ручного решения после 3–5 кейсов.
+13. **Conformance сходится по case-state.** Native и revmux используют одну
+    `manifest.conformance` state machine. `initial` открывается один раз на exact
+    subject; чистый PASS терминален. Gating findings образуют один declared
+    correction batch, affected verification и `final` только по finding batch,
+    correction delta и direct regressions. Остаточный или новый `critical|major`
+    переводит case в `user-decision`; новый episode требует evidence изменения
+    scope, architecture либо baseline. Failed targeted recheck, изменившийся
+    frozen subject и correction scope expansion также останавливают episode в
+    `user-decision`; `request-conformance-decision` даёт явный выход без нового
+    automatic cycle. Runner retry повторяет тот же assignment.
 
 ## Когда применять
 
@@ -108,9 +118,11 @@ generic. Профиль дополняет, но не заменяет ближ�
 - При `review_backend: revmux` tester `conformance` остаётся свежим независимым
   run и владельцем output artifact, но является только driver: один назначенный
   revmux round, без собственного review поверх него.
-- Перед каждым полным verification выполни `begin-verification`. На одну
-  неизменную source revision разрешены initial pass и не более двух correction
-  passes; затем собери один полный spec-feedback batch или запроси решение.
+- Перед verification выполни `begin-verification`. Первый assignment может быть
+  полным; следующий обязан назвать exact finding IDs, affected paths и direct
+  regressions. Ещё один targeted assignment допустим только для принятого
+  conformance batch. Неудачный targeted recheck переводит case в
+  `user-decision`; spec gaps передавай одним полным feedback batch.
 - Tester не исправляет продуктовый код во время независимой проверки.
 - Роли не мержат, не деплоят и не меняют внешние статусы без отдельного гейта.
 
@@ -177,6 +189,8 @@ python3 -m unittest discover -s {baseDir}/scripts -p 'test_*.py'
   retirement trigger и removal evidence.
 - BE/FE выполнили project checks и вернули воспроизводимое evidence.
 - Tester независимо проверил persisted/live result либо назвал coverage gaps.
+- `manifest.conformance` терминален с PASS; повторный initial/final, второй
+  correction batch и undeclared changed path отвергаются case manager.
 - `implemented`, `verified`, `merged` и `deployed` не смешаны.
 - После каждого terminal/interrupted delivery cycle сохранён независимый process
   verdict: `KEEP` либо доказанная категория дефекта; manual stop остаётся

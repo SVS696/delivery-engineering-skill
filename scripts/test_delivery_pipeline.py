@@ -21,6 +21,21 @@ class DeliveryPipelineTests(unittest.TestCase):
         self.assertEqual(result["contracts"], 3)
         self.assertEqual(result["runtime_adapters"], 6)
 
+    def test_public_scan_excludes_review_runtime(self) -> None:
+        self.assertFalse(
+            pipeline.is_public_package_path(
+                pipeline.ROOT / ".revmux" / "tasks" / "review" / "report.md"
+            )
+        )
+        self.assertFalse(
+            pipeline.is_public_package_path(
+                pipeline.ROOT / ".omc" / "state" / "session.json"
+            )
+        )
+        self.assertTrue(
+            pipeline.is_public_package_path(pipeline.ROOT / "references" / "case-state.md")
+        )
+
     def test_generic_profile_is_safe(self) -> None:
         profile = pipeline.detect_profile(Path(tempfile.mkdtemp()))
         self.assertEqual(profile.profile_id, "generic")

@@ -20,8 +20,8 @@
 
 Этот tester является driver: он не добавляет собственный model-review, не
 перезапускает native conformance и не продолжает review loop. Revmux read-only и
-не исправляет код. Existing schema-3 binding к completed tester run и exact
-output artifact сохраняется без нового gate.
+не исправляет код. Schema-4 binding к completed tester run, exact output
+artifact и `manifest.conformance` сохраняется без нового gate.
 
 ## Opt-in dependency
 
@@ -54,7 +54,8 @@ Skill-local профили сохраняют стандартные имена 
 
 ## Материализация exact review context
 
-Revmux не выбирает объект и baseline самостоятельно. После
+Revmux не выбирает объект и baseline самостоятельно. Сначала открой episode
+через `delivery_case.py begin-conformance`, затем после
 `delivery_case.py context` сохрани полный JSON assignment, вызови `revmux new`
 и передай возвращённые paths команде:
 
@@ -70,12 +71,16 @@ python3 <delivery-root>/scripts/revmux_review.py prepare \
 ```
 
 `prepare` fail-closed проверяет conformance assignment, phase/profile и ровно
-`covered_gates: [project_conformance]`; разрешает base/head только как реальные
+`covered_gates: [project_conformance]`, assignment subject и convergence scope;
+разрешает base/head только как реальные
 commits одного Git worktree; строит и архивирует exact binary diff; фиксирует
 base/head SHA, changed files, shortstat и SHA-256 diff. В
 `context/delivery-assignment.json` попадает точное сравнение:
 
-- target — архивированный diff `base_sha..head_sha`;
+- target initial — архивированный delivery diff `base_sha..head_sha`;
+- target final — exact pre/post-correction diff, accepted finding IDs и named
+  direct regression paths; actual changed files обязаны точно совпасть с
+  declared `changed_paths`;
 - product baseline — approved `scope.md`, `acceptance.md`, `conformance.md`,
   lane basis, decisions, evidence и developer reports, если assignment их
   разрешил;
@@ -95,17 +100,23 @@ assignment либо `--repository-instruction`, не становится ист
 1. Готовый Delivery diff прошёл implementation self-checks, project tests/CI и
    отдельный tester `verification`, включая live/persisted verification, когда
    она применима.
-2. Tester-driver запускает один `comprehensive` review.
+2. `begin-conformance` фиксирует один initial assignment; tester-driver запускает
+   один `comprehensive` review.
 3. Координатор подтверждает findings. Только confirmed/refined
    `critical|major` образуют один consolidated fix batch. `minor`, immaterial,
    pre-existing и open questions не запускают correction round.
-4. После исправления и повторных affected tests/verification свежий
-   tester-driver запускает один профиль `final` на новом exact subject.
-5. Любой оставшийся/new critical/major завершает review case как failed либо
+4. Чистый initial PASS терминален и не запускает лишний final. Если принят
+   correction batch, affected checks/verification выполняются локализованно,
+   затем `complete-conformance-remediation` фиксирует corrected subject,
+   changed paths и direct regressions.
+5. Свежий tester-driver запускает один профиль `final` на exact correction diff;
+   ранее пройденные области остаются закрыты, кроме явно изменённой границы.
+6. Любой оставшийся/new critical/major завершает review case как failed либо
    user-decision; второй fix/review cycle автоматически не открывается.
 
 `scripts/revmux_review.py` материализует context, создаёт round evidence,
-сводит initial/final pair и агрегирует 3–5 adoption receipts. Метрики: human
+сводит clean initial либо initial/final pair и агрегирует 3–5 adoption receipts.
+Метрики: human
 active time, revmux elapsed time,
 model calls, tokens, confirmed critical/major, correction rounds, новые и
 повторившиеся gating areas. Model calls включают reviewer-driver и все revmux

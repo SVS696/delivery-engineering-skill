@@ -2,8 +2,9 @@
 """Prepare revmux review inputs, validate rounds, and emit adoption evidence.
 
 The script is deliberately not a review loop. It turns one finished revmux
-round into immutable evidence and combines exactly one initial/final pair into
-bounded adoption metrics. Source changes remain the coordinator's responsibility.
+round into immutable evidence and combines a clean initial or exactly one
+initial/final pair into bounded adoption metrics. Source changes remain the
+coordinator's responsibility.
 """
 
 from __future__ import annotations
@@ -148,6 +149,17 @@ def prepare_round(args: argparse.Namespace) -> int:
     expected_profile = "comprehensive" if phase == "initial" else "final"
     if assignment.get("revmux_profile") != expected_profile:
         raise EvidenceError(f"assignment profile must be {expected_profile}")
+    assignment_subject = assignment.get("subject_sha256")
+    if not isinstance(assignment_subject, str) or len(assignment_subject) != SHA256_RE_LENGTH:
+        raise EvidenceError("assignment requires exact case subject SHA-256")
+    convergence = assignment.get("convergence")
+    if not isinstance(convergence, dict):
+        raise EvidenceError("assignment requires conformance convergence context")
+    expected_scope = "full-stage" if phase == "initial" else "targeted-remediation"
+    if convergence.get("review_scope") != expected_scope:
+        raise EvidenceError(
+            f"{phase} assignment requires review_scope={expected_scope}"
+        )
     covered = string_list(assignment.get("covered_gates"), "covered_gates")
     if covered != ["project_conformance"]:
         raise EvidenceError("Delivery revmux assignment must cover project_conformance exactly")
@@ -173,6 +185,36 @@ def prepare_round(args: argparse.Namespace) -> int:
         ).decode("utf-8").splitlines()
         if line
     ]
+    declared_changed: list[str] = []
+    direct_regressions: list[str] = []
+    finding_ids: list[str] = []
+    if phase == "final":
+        declared_changed = string_list(
+            convergence.get("changed_paths"), "convergence.changed_paths"
+        )
+        direct_regressions = string_list(
+            convergence.get("direct_regressions"),
+            "convergence.direct_regressions",
+        )
+        finding_ids = string_list(
+            convergence.get("finding_ids"), "convergence.finding_ids"
+        )
+        if not declared_changed or not finding_ids:
+            raise EvidenceError(
+                "final assignment requires exact changed paths and finding IDs"
+            )
+        if sorted(changed_files) != sorted(declared_changed):
+            raise EvidenceError(
+                "final correction diff differs declared changed paths: "
+                f"actual={sorted(changed_files)!r}, declared={sorted(declared_changed)!r}"
+            )
+        missing_regressions = [
+            item for item in direct_regressions if not (worktree / item).exists()
+        ]
+        if missing_regressions:
+            raise EvidenceError(
+                "direct regression paths are missing: " + ", ".join(missing_regressions)
+            )
     shortstat = git_output(
         worktree, "diff", "--shortstat", "--no-ext-diff", range_spec, "--"
     ).decode("utf-8").strip()
@@ -272,6 +314,7 @@ def prepare_round(args: argparse.Namespace) -> int:
         "revmux_profile": expected_profile,
         "covered_gates": covered,
         "subject_sha256": subject_sha256,
+        "case_subject_sha256": assignment_subject,
         "material_fingerprint": material_fingerprint,
         "diff": {
             "worktree": str(worktree),
@@ -286,7 +329,11 @@ def prepare_round(args: argparse.Namespace) -> int:
             "changed_files": changed_files,
         },
         "comparison": {
-            "target": "the archived exact diff and changed files at head_sha",
+            "target": (
+                "the archived exact correction diff, accepted finding batch and direct regressions"
+                if phase == "final"
+                else "the archived exact delivery diff and changed files at head_sha"
+            ),
             "baselines": materials,
             "question": (
                 "Does this exact diff satisfy the approved scope and acceptance basis, follow the "
@@ -295,6 +342,7 @@ def prepare_round(args: argparse.Namespace) -> int:
             ),
         },
         "revmux_dependency": revmux_dependency,
+        "convergence": convergence,
         "excluded": assignment.get("excluded", []),
     }
     context_path.write_text(
@@ -309,7 +357,14 @@ def prepare_round(args: argparse.Namespace) -> int:
         f"- Review exact diff `{base_sha}..{head_sha}` ({shortstat or 'non-empty diff'}).\n"
         f"- Archived diff: `{diff_path}`; SHA-256: `{diff_sha256}`\n"
         f"- Changed files and hashed comparison baselines: `{context_path}`\n"
-        "- Inspect with:\n\n"
+        + (
+            f"- Verify findings: {', '.join(finding_ids)}\n"
+            f"- Correction paths: {', '.join(declared_changed)}\n"
+            f"- Direct regression paths: {', '.join(direct_regressions) or 'none'}\n"
+            if phase == "final"
+            else ""
+        )
+        + "- Inspect with:\n\n"
         "```text\n"
         f"git diff {base_sha}..{head_sha}\n"
         "```\n\n"
@@ -320,9 +375,14 @@ def prepare_round(args: argparse.Namespace) -> int:
     goal_text = (
         "# Goal\n\n"
         f"{context_payload['comparison']['question']}\n\n"
-        "This review is correct only if every finding is caused by the exact archived diff and is "
-        "judged against the frozen acceptance/conformance inputs and repository instructions.\n\n"
-        "Confirmed critical/major findings gate conformance. Minor findings never request a "
+        + (
+            "Verify only the accepted finding batch, correction delta and named direct regression "
+            "paths. Previously passed areas stay closed unless the correction changed their boundary.\n\n"
+            if phase == "final"
+            else "This review is correct only if every finding is caused by the exact archived diff "
+            "and is judged against the frozen acceptance/conformance inputs and repository instructions.\n\n"
+        )
+        + "Confirmed critical/major findings gate conformance. Minor findings never request a "
         "correction round; in final phase they are not reported. Tests, CI and live verification "
         "remain separate evidence and must not be rerun by this panel.\n"
     )
@@ -477,7 +537,7 @@ def write_round(args: argparse.Namespace) -> int:
     evidence_lines = [
         "# revmux review evidence",
         "",
-        f"- backend: `revmux`",
+        "- backend: `revmux`",
         f"- phase: `{args.phase}`",
         f"- profile: `{metrics['profile']}`",
         f"- task: `{metrics['task']}`",
@@ -521,11 +581,8 @@ def write_round(args: argparse.Namespace) -> int:
 
 def write_case(args: argparse.Namespace) -> int:
     initial = read_json(args.initial_metrics)
-    final = read_json(args.final_metrics)
-    if initial.get("phase") != "initial" or final.get("phase") != "final":
-        raise EvidenceError("case metrics require one initial and one final receipt")
-    if initial.get("task") != final.get("task"):
-        raise EvidenceError("initial/final task mismatch")
+    if initial.get("phase") != "initial":
+        raise EvidenceError("case metrics require one initial receipt")
     if args.correction_rounds not in {0, 1}:
         raise EvidenceError("review cycle permits zero or one correction round")
     if args.active_time_seconds < 0:
@@ -535,6 +592,18 @@ def write_case(args: argparse.Namespace) -> int:
     initial_gating = int(initial.get("confirmed_critical", 0)) + int(
         initial.get("confirmed_major", 0)
     )
+    if initial_gating:
+        if args.final_metrics is None:
+            raise EvidenceError("a corrected case requires one final receipt")
+        final = read_json(args.final_metrics)
+        if final.get("phase") != "final":
+            raise EvidenceError("corrected case requires phase=final metrics")
+        if initial.get("task") != final.get("task"):
+            raise EvidenceError("initial/final task mismatch")
+    else:
+        if args.final_metrics is not None:
+            raise EvidenceError("clean initial review must not open a redundant final round")
+        final = initial
     final_gating = int(final.get("confirmed_critical", 0)) + int(
         final.get("confirmed_major", 0)
     )
@@ -551,11 +620,19 @@ def write_case(args: argparse.Namespace) -> int:
         "initial_subject_sha256": initial["subject_sha256"],
         "final_subject_sha256": final["subject_sha256"],
         "active_time_seconds": args.active_time_seconds,
-        "revmux_duration_ms": int(initial["revmux_duration_ms"]) + int(final["revmux_duration_ms"]),
-        "model_calls": int(initial["model_calls"]) + int(final["model_calls"]),
-        "revmux_tokens": int(initial["revmux_tokens"]) + int(final["revmux_tokens"]),
+        "revmux_duration_ms": int(initial["revmux_duration_ms"]) + (
+            int(final["revmux_duration_ms"]) if args.final_metrics is not None else 0
+        ),
+        "model_calls": int(initial["model_calls"]) + (
+            int(final["model_calls"]) if args.final_metrics is not None else 0
+        ),
+        "revmux_tokens": int(initial["revmux_tokens"]) + (
+            int(final["revmux_tokens"]) if args.final_metrics is not None else 0
+        ),
         "driver_tokens": args.driver_tokens,
-        "tokens": int(initial["revmux_tokens"]) + int(final["revmux_tokens"]) + args.driver_tokens,
+        "tokens": int(initial["revmux_tokens"])
+        + (int(final["revmux_tokens"]) if args.final_metrics is not None else 0)
+        + args.driver_tokens,
         "confirmed_critical": int(initial["confirmed_critical"]),
         "confirmed_major": int(initial["confirmed_major"]),
         "correction_rounds": args.correction_rounds,
@@ -563,7 +640,9 @@ def write_case(args: argparse.Namespace) -> int:
         "repeated_gating_areas": sorted(final_areas & initial_areas),
         "final_decision": final.get("decision"),
         "initial_metrics_sha256": sha256(args.initial_metrics),
-        "final_metrics_sha256": sha256(args.final_metrics),
+        "final_metrics_sha256": (
+            sha256(args.final_metrics) if args.final_metrics is not None else None
+        ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -659,7 +738,7 @@ def parser() -> argparse.ArgumentParser:
     round_cmd.add_argument("--metrics-output", type=Path, required=True)
     case_cmd = commands.add_parser("case")
     case_cmd.add_argument("--initial-metrics", type=Path, required=True)
-    case_cmd.add_argument("--final-metrics", type=Path, required=True)
+    case_cmd.add_argument("--final-metrics", type=Path)
     case_cmd.add_argument("--case-kind", choices=("vigers", "delivery"), required=True)
     case_cmd.add_argument("--active-time-seconds", type=int, required=True)
     case_cmd.add_argument("--driver-tokens", type=int, required=True)

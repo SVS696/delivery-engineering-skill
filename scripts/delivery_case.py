@@ -22,11 +22,23 @@ from delivery_context import (
 )
 
 
-SCHEMA_VERSION = 3
-SUPPORTED_SCHEMAS = {1, 2, SCHEMA_VERSION}
+SCHEMA_VERSION = 4
+SUPPORTED_SCHEMAS = {1, 2, 3, SCHEMA_VERSION}
 DELIVERY_HANDOFF = "delivery-handoff.json"
 DELIVERY_HANDOFF_SCHEMA = 1
 MAX_VERIFICATION_ATTEMPTS = 3
+CONFORMANCE_PHASES = {
+    "idle",
+    "initial-running",
+    "remediation",
+    "final-ready",
+    "final-running",
+    "terminal",
+    "user-decision",
+}
+CONFORMANCE_BACKENDS = {"native", "revmux"}
+CONFORMANCE_FINDING_SEVERITIES = {"critical", "major"}
+REPOSITORY_PATH_RE = re.compile(r"^(?!/)(?!.*(?:^|/)\.\.(?:/|$)).+$")
 CASE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 INTENTS = {"implement", "accept", "test-design"}
 LANES = {"backend", "frontend", "test"}
@@ -45,7 +57,7 @@ GATES = (
 GATE_STATUSES = {"pending", "pass", "fail", "not_required", "stale"}
 AGENT_BOUND_GATES = {
     "independent_verification": "verification",
-    "project_conformance": "project-conformance",
+    "project_conformance": "conformance",
 }
 DEV_TRANSITIONS = {
     "planned": {"ready", "blocked"},
@@ -177,6 +189,16 @@ def fingerprint(case_root: Path, entries: list[str]) -> str:
     return digest.hexdigest()
 
 
+def subject_bindings(case_root: Path, entries: list[str]) -> list[dict[str, str]]:
+    bindings: list[dict[str, str]] = []
+    for entry in entries:
+        path = resolve_subject(case_root, entry)
+        if not path.is_file():
+            raise CaseError(f"Subject not found while binding evidence: {path}")
+        bindings.append({"entry": entry, "sha256": file_sha256(path)})
+    return bindings
+
+
 def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -239,9 +261,12 @@ def validate_agent_gate_binding(
     run = agent_run(case_root, run_id)
     if run.get("role") != "delivery-tester":
         raise CaseError(f"{gate} requires a delivery-tester run")
-    if run.get("role_mode") != AGENT_BOUND_GATES[gate]:
+    expected_modes = {AGENT_BOUND_GATES[gate]}
+    if gate == "project_conformance":
+        expected_modes.add("project-conformance")
+    if run.get("role_mode") not in expected_modes:
         raise CaseError(
-            f"{gate} requires role_mode={AGENT_BOUND_GATES[gate]}, "
+            f"{gate} requires role_mode in {sorted(expected_modes)}, "
             f"got {run.get('role_mode')}"
         )
     if run.get("status") != "completed":
@@ -268,6 +293,8 @@ def status_text(data: dict[str, Any]) -> str:
         "- verification attempts: "
         f"`{data.get('verification', {}).get('attempts', 0)}/"
         f"{data.get('verification', {}).get('max_attempts', MAX_VERIFICATION_ATTEMPTS)}`",
+        "- conformance: "
+        f"`{data.get('conformance', {}).get('phase', 'legacy-untracked')}`",
         "- engineering context: `recorded`"
         if data.get("engineering_context")
         else "- engineering context: `legacy-unrecorded`",
@@ -290,6 +317,71 @@ def save(case_root: Path, data: dict[str, Any], event: dict[str, Any]) -> None:
     data.setdefault("history", []).append(event)
     atomic_json(case_root / "manifest.json", data)
     (case_root / "status.md").write_text(status_text(data), encoding="utf-8")
+
+
+def initial_conformance_state() -> dict[str, Any]:
+    return {
+        "episode": 0,
+        "phase": "idle",
+        "backend": None,
+        "assignment_id": None,
+        "current_subject_sha256": None,
+        "current_subjects": [],
+        "correction_batches": 0,
+        "pending_findings": [],
+        "finding_evidence": None,
+        "affected_paths": [],
+        "remediation": None,
+        "terminal_decision": None,
+        "terminal_run_id": None,
+        "decision_reason": None,
+        "user_decision_evidence": None,
+        "attempts": [],
+    }
+
+
+def ensure_conformance_state(data: dict[str, Any]) -> dict[str, Any]:
+    state = data.get("conformance")
+    if state is None:
+        state = initial_conformance_state()
+        data["conformance"] = state
+    if not isinstance(state, dict):
+        raise CaseError("Conformance state must be an object")
+    defaults = initial_conformance_state()
+    for key, value in defaults.items():
+        if key not in state:
+            state[key] = value.copy() if isinstance(value, (list, dict)) else value
+    return state
+
+
+def normalize_repository_paths(values: list[str], field: str) -> list[str]:
+    normalized = [item.strip() for item in values if item.strip()]
+    if len(normalized) != len(values) or len(normalized) != len(set(normalized)):
+        raise CaseError(f"{field} must contain unique non-empty repository-relative paths")
+    invalid = [item for item in normalized if not REPOSITORY_PATH_RE.fullmatch(item)]
+    if invalid:
+        raise CaseError(f"{field} contains invalid repository paths: {', '.join(invalid)}")
+    return normalized
+
+
+def normalize_conformance_findings(values: list[str]) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for value in values:
+        finding_id, separator, severity = value.rpartition("=")
+        finding_id = finding_id.strip()
+        severity = severity.strip()
+        if not separator or not CASE_ID_RE.fullmatch(finding_id):
+            raise CaseError(
+                "Each conformance finding must use FINDING_ID=critical|major"
+            )
+        if severity not in CONFORMANCE_FINDING_SEVERITIES:
+            raise CaseError(f"Invalid conformance severity for {finding_id}: {severity}")
+        if finding_id in seen:
+            raise CaseError(f"Duplicate conformance finding: {finding_id}")
+        seen.add(finding_id)
+        findings.append({"id": finding_id, "severity": severity})
+    return findings
 
 
 def init_case(
@@ -409,6 +501,7 @@ def init_case(
             "current_subject_sha256": None,
             "feedback_batch": None,
         },
+        "conformance": initial_conformance_state(),
         "history": [
             {
                 "at": created,
@@ -475,7 +568,36 @@ def reconcile_subjects(root: Path) -> tuple[dict[str, Any], list[str]]:
             item["note"] = "subject changed after PASS"
             item["current_fingerprint"] = current
             stale.append(gate)
-    if stale:
+    conformance_changed = False
+    conformance = data.get("conformance")
+    if (
+        data.get("schema_version", 0) >= SCHEMA_VERSION
+        and isinstance(conformance, dict)
+        and conformance.get("phase")
+        in {"initial-running", "final-ready", "final-running", "terminal"}
+    ):
+        expected = conformance.get("current_subject_sha256")
+        entries = conformance.get("current_subjects")
+        try:
+            current = fingerprint(case_root, entries if isinstance(entries, list) else [])
+        except CaseError:
+            current = "missing"
+        if not expected or current != expected:
+            previous_phase = conformance.get("phase")
+            conformance.update(
+                phase="user-decision",
+                terminal_decision="user-decision",
+                terminal_run_id=None,
+                decision_reason={
+                    "kind": "subject-changed",
+                    "from_phase": previous_phase,
+                    "expected_subject_sha256": expected,
+                    "current_subject_sha256": current,
+                    "at": now(),
+                },
+            )
+            conformance_changed = True
+    if stale or conformance_changed:
         test_lane = data.get("lanes", {}).get("test")
         if isinstance(test_lane, dict) and test_lane.get("state") == "verified":
             test_lane.update(
@@ -489,7 +611,11 @@ def reconcile_subjects(root: Path) -> tuple[dict[str, Any], list[str]]:
         save(
             case_root,
             data,
-            {"type": "subject-reconciled", "stale_gates": sorted(stale)},
+            {
+                "type": "subject-reconciled",
+                "stale_gates": sorted(stale),
+                "conformance_user_decision": conformance_changed,
+            },
         )
     return data, stale
 
@@ -499,11 +625,17 @@ def begin_verification(
     *,
     subjects: list[Path],
     note: str,
+    direct_regressions: list[str] | None = None,
+    findings: list[str] | None = None,
+    affected_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     """Open one bounded verification assignment for the exact current subject."""
     case_root, data = load(root)
-    if data.get("schema_version") != SCHEMA_VERSION:
-        raise CaseError("Bounded verification requires a schema-3 delivery case")
+    if data.get("schema_version") == 3:
+        data["schema_version"] = SCHEMA_VERSION
+        ensure_conformance_state(data)
+    elif data.get("schema_version") != SCHEMA_VERSION:
+        raise CaseError("Bounded verification requires the current delivery schema")
     verification = data.get("verification")
     if not isinstance(verification, dict):
         raise CaseError("Verification state is missing")
@@ -515,11 +647,15 @@ def begin_verification(
     maximum = verification.get("max_attempts", MAX_VERIFICATION_ATTEMPTS)
     if not isinstance(attempts, int) or not isinstance(maximum, int):
         raise CaseError("Verification attempt counters are invalid")
+    if verification.get("status") == "user-decision":
+        raise CaseError(
+            "Verification is awaiting a user decision; another assignment is forbidden"
+        )
     if attempts >= maximum:
-        verification["status"] = "feedback_required"
+        verification["status"] = "user-decision"
         data["lanes"]["test"].update(
             state="blocked",
-            note="verification budget exhausted; aggregate one spec-feedback batch",
+            note="verification convergence budget exhausted; user decision required",
             updated_at=now(),
         )
         save(
@@ -528,19 +664,71 @@ def begin_verification(
             {"type": "verification-budget-exhausted", "attempts": attempts},
         )
         raise CaseError(
-            "Verification budget exhausted after three assignments; aggregate one "
-            "spec-feedback batch or record a user decision instead of another full pass"
+            "Verification convergence budget exhausted; aggregate one spec-feedback "
+            "batch or record a user decision instead of another pass"
         )
     if not subjects:
         raise CaseError("Verification requires at least one subject")
     entries = [subject_entry(case_root, path) for path in subjects]
     subject_sha256 = fingerprint(case_root, entries)
+    conformance = ensure_conformance_state(data)
+    conformance_targeted = conformance.get("phase") == "remediation"
+    normalized_findings = normalize_conformance_findings(findings or [])
+    normalized_affected = normalize_repository_paths(
+        affected_paths or [], "affected paths"
+    )
+    if attempts == 0:
+        if normalized_findings or normalized_affected:
+            raise CaseError("Initial verification cannot be targeted remediation")
+        targeted = False
+    elif conformance_targeted:
+        targeted = True
+        normalized_findings = list(conformance.get("pending_findings", []))
+        normalized_affected = list(conformance.get("affected_paths", []))
+    else:
+        if attempts > 1 or verification.get("status") != "failed":
+            verification["status"] = "user-decision"
+            save(
+                case_root,
+                data,
+                {"type": "verification-user-decision", "attempts": attempts},
+            )
+            raise CaseError(
+                "Another verification correction pass requires user decision"
+            )
+        if not normalized_findings or not normalized_affected:
+            raise CaseError(
+                "Correction verification requires exact findings and affected paths"
+            )
+        targeted = True
+    regression_paths = normalize_repository_paths(
+        direct_regressions or [], "direct regression paths"
+    )
+    verification_scope = {
+        "review_scope": "targeted-remediation" if targeted else "full-stage",
+        "finding_ids": (
+            [item["id"] for item in normalized_findings]
+            if targeted
+            else []
+        ),
+        "affected_paths": normalized_affected if targeted else [],
+        "direct_regressions": regression_paths,
+        "new_findings_policy": "user-decision" if targeted else "classify",
+    }
     verification.update(
         attempts=attempts + 1,
         status="running",
         current_subject_sha256=subject_sha256,
         current_subjects=entries,
         note=note.strip(),
+        current_scope=verification_scope,
+    )
+    verification.setdefault("scope_history", []).append(
+        {
+            "attempt": attempts + 1,
+            "subject_sha256": subject_sha256,
+            **verification_scope,
+        }
     )
     save(
         case_root,
@@ -557,6 +745,7 @@ def begin_verification(
         "max_attempts": maximum,
         "source_revision": verification["source_revision"],
         "subject_sha256": subject_sha256,
+        "verification_scope": verification_scope,
     }
 
 
@@ -680,6 +869,7 @@ def migrate_source_handoff(root: Path, *, handoff: Path, note: str) -> dict[str,
         "current_subject_sha256": None,
         "feedback_batch": None,
     }
+    data["conformance"] = initial_conformance_state()
     for gate, item in data.get("gates", {}).items():
         if gate != "authorization" and item.get("status") == "pass":
             item.update(status="stale", note="Vigers source revision advanced")
@@ -706,6 +896,445 @@ def migrate_source_handoff(root: Path, *, handoff: Path, note: str) -> dict[str,
     }
 
 
+def case_relative_file(case_root: Path, relative: str, field: str) -> Path:
+    path = (case_root / relative).resolve()
+    try:
+        path.relative_to(case_root)
+    except ValueError as exc:
+        raise CaseError(f"{field} escapes the delivery case: {relative}") from exc
+    if not path.is_file():
+        raise CaseError(f"{field} is not a readable case file: {relative}")
+    return path
+
+
+def conformance_result(
+    state: dict[str, Any], *, review_scope: str | None = None
+) -> dict[str, Any]:
+    return {
+        "episode": state["episode"],
+        "phase": state["phase"],
+        "backend": state["backend"],
+        "assignment_id": state["assignment_id"],
+        "subject_sha256": state["current_subject_sha256"],
+        "review_scope": review_scope,
+        "correction_batches": state["correction_batches"],
+        "pending_findings": state["pending_findings"],
+        "affected_paths": state["affected_paths"],
+        "remediation": state["remediation"],
+        "terminal_decision": state["terminal_decision"],
+        "decision_reason": state["decision_reason"],
+    }
+
+
+def begin_conformance(
+    root: Path,
+    *,
+    backend: str,
+    subjects: list[Path],
+    note: str,
+) -> dict[str, Any]:
+    """Open one exact conformance episode after current verification gates pass."""
+    data, _ = reconcile_subjects(root)
+    case_root = root.expanduser().resolve()
+    if data.get("schema_version") == 3:
+        data["schema_version"] = SCHEMA_VERSION
+        ensure_conformance_state(data)
+    elif data.get("schema_version") != SCHEMA_VERSION:
+        raise CaseError(
+            "Conformance convergence requires a schema-3+ delivery case"
+        )
+    if backend not in CONFORMANCE_BACKENDS:
+        raise CaseError(f"Unknown conformance backend: {backend}")
+    if data.get("intent") == "test-design":
+        raise CaseError("test-design has no project conformance episode")
+    state = ensure_conformance_state(data)
+    if state["phase"] not in {"idle", "initial-running"}:
+        raise CaseError(
+            f"Cannot start conformance from {state['phase']}; finish the current episode"
+        )
+    if data.get("lanes", {}).get("test", {}).get("state") != "verified":
+        raise CaseError("Conformance requires the test lane to be verified")
+    for gate in ("project_checks", "independent_verification"):
+        if data.get("gates", {}).get(gate, {}).get("status") != "pass":
+            raise CaseError(f"Conformance requires current {gate} PASS")
+    if not subjects:
+        raise CaseError("Conformance requires at least one exact subject")
+    entries = [subject_entry(case_root, path) for path in subjects]
+    subject_sha256 = fingerprint(case_root, entries)
+    if state["phase"] == "initial-running":
+        if (
+            state["backend"] == backend
+            and state["current_subject_sha256"] == subject_sha256
+            and state["current_subjects"] == entries
+        ):
+            return conformance_result(state, review_scope="full-stage")
+        raise CaseError("A different initial conformance assignment is already active")
+    episode = int(state.get("episode", 0)) + 1
+    state.update(
+        episode=episode,
+        phase="initial-running",
+        backend=backend,
+        assignment_id=f"CF-{episode:03d}-I",
+        current_subject_sha256=subject_sha256,
+        current_subjects=entries,
+        correction_batches=0,
+        pending_findings=[],
+        finding_evidence=None,
+        affected_paths=[],
+        remediation=None,
+        terminal_decision=None,
+        terminal_run_id=None,
+        decision_reason=None,
+    )
+    save(
+        case_root,
+        data,
+        {
+            "type": "conformance-started",
+            "episode": episode,
+            "backend": backend,
+            "assignment_id": state["assignment_id"],
+            "subject_sha256": subject_sha256,
+            "note": note.strip(),
+        },
+    )
+    return conformance_result(state, review_scope="full-stage")
+
+
+def record_conformance_review(
+    root: Path,
+    *,
+    run_id: str,
+    decision: str,
+    evidence: str,
+    findings: list[str],
+    affected_paths: list[str],
+    note: str,
+) -> dict[str, Any]:
+    """Dispose one active conformance assignment without opening a review loop."""
+    case_root, data = load(root)
+    state = ensure_conformance_state(data)
+    if state["phase"] not in {"initial-running", "final-running"}:
+        raise CaseError("No active conformance assignment awaits disposition")
+    if decision not in {"pass", "revise", "user-decision"}:
+        raise CaseError(f"Unknown conformance decision: {decision}")
+    normalized_findings = normalize_conformance_findings(findings)
+    normalized_paths = normalize_repository_paths(affected_paths, "affected paths")
+    if decision == "pass" and normalized_findings:
+        raise CaseError("Conformance PASS cannot retain critical or major findings")
+    if decision == "revise" and (not normalized_findings or not normalized_paths):
+        raise CaseError("Conformance revise requires findings and affected paths")
+    if decision == "user-decision" and not note.strip():
+        raise CaseError("Conformance user-decision requires a note")
+    current_subject = str(state.get("current_subject_sha256") or "")
+    current_entries = list(state.get("current_subjects", []))
+    if fingerprint(case_root, current_entries) != current_subject:
+        raise CaseError(
+            "Conformance subject changed after assignment; start a distinct valid "
+            "episode instead of attaching a stale verdict"
+        )
+    validate_agent_gate_binding(
+        case_root,
+        "project_conformance",
+        run_id,
+        current_subject,
+        evidence,
+    )
+    evidence_path = case_relative_file(case_root, evidence, "conformance evidence")
+    attempt_phase = "initial" if state["phase"] == "initial-running" else "final"
+    attempt = {
+        "episode": state["episode"],
+        "assignment_id": state["assignment_id"],
+        "phase": attempt_phase,
+        "backend": state["backend"],
+        "subject_sha256": current_subject,
+        "subjects": current_entries,
+        "subject_bindings": subject_bindings(case_root, current_entries),
+        "run_id": run_id,
+        "decision": decision,
+        "findings": normalized_findings,
+        "affected_paths": normalized_paths,
+        "evidence": evidence,
+        "evidence_sha256": file_sha256(evidence_path),
+        "at": now(),
+    }
+    state.setdefault("attempts", []).append(attempt)
+    if decision == "pass":
+        state.update(
+            phase="terminal",
+            terminal_decision="pass",
+            terminal_run_id=run_id,
+            pending_findings=[],
+            affected_paths=[],
+        )
+    elif attempt_phase == "final" or decision == "user-decision":
+        state.update(
+            phase="user-decision",
+            terminal_decision="user-decision",
+            terminal_run_id=run_id,
+            decision_reason={
+                "kind": "review-user-decision",
+                "assignment_id": attempt["assignment_id"],
+                "evidence": evidence,
+                "note": note.strip(),
+                "at": now(),
+            },
+            pending_findings=normalized_findings,
+            affected_paths=normalized_paths,
+        )
+    else:
+        state.update(
+            phase="remediation",
+            correction_batches=1,
+            pending_findings=normalized_findings,
+            finding_evidence={"ref": evidence, "sha256": file_sha256(evidence_path)},
+            affected_paths=normalized_paths,
+            remediation=None,
+        )
+        for gate in (
+            "project_checks",
+            "independent_verification",
+            "project_conformance",
+            "traceability",
+        ):
+            item = data.get("gates", {}).get(gate)
+            if isinstance(item, dict) and item.get("status") == "pass":
+                item.update(
+                    status="stale",
+                    note="accepted conformance findings require affected recheck",
+                )
+        test_lane = data.get("lanes", {}).get("test")
+        if isinstance(test_lane, dict) and test_lane.get("state") == "verified":
+            test_lane.update(
+                state="stale",
+                note="conformance findings require targeted verification",
+                updated_at=now(),
+            )
+    save(
+        case_root,
+        data,
+        {
+            "type": "conformance-reviewed",
+            "episode": state["episode"],
+            "assignment_id": attempt["assignment_id"],
+            "phase": attempt_phase,
+            "decision": decision,
+            "effective_phase": state["phase"],
+            "run_id": run_id,
+        },
+    )
+    return conformance_result(state)
+
+
+def complete_conformance_remediation(
+    root: Path,
+    *,
+    evidence: str,
+    subjects: list[Path],
+    changed_paths: list[str],
+    direct_regressions: list[str],
+    note: str,
+) -> dict[str, Any]:
+    """Freeze the correction delta after affected checks pass and before final review."""
+    case_root, data = load(root)
+    state = ensure_conformance_state(data)
+    if state["phase"] != "remediation":
+        raise CaseError("Conformance remediation is not active")
+    if state.get("correction_batches") != 1:
+        raise CaseError("Conformance permits exactly one automatic correction batch")
+    for gate in ("project_checks", "independent_verification"):
+        if data.get("gates", {}).get(gate, {}).get("status") != "pass":
+            raise CaseError(f"Complete remediation requires affected {gate} PASS")
+    if data.get("lanes", {}).get("test", {}).get("state") != "verified":
+        raise CaseError("Complete remediation requires targeted verification")
+    if not subjects:
+        raise CaseError("Conformance remediation requires the corrected exact subject")
+    normalized_changed = normalize_repository_paths(changed_paths, "changed paths")
+    normalized_regressions = normalize_repository_paths(
+        direct_regressions, "direct regression paths"
+    )
+    if not normalized_changed:
+        raise CaseError("Conformance remediation requires at least one changed path")
+    affected = set(state.get("affected_paths", []))
+    expansion = sorted(set(normalized_changed) - affected)
+    if expansion:
+        raise CaseError(
+            "Correction changed paths outside the accepted finding scope: "
+            + ", ".join(expansion)
+            + "; use request-conformance-decision before a wider episode"
+        )
+    evidence_path = case_relative_file(case_root, evidence, "remediation evidence")
+    entries = [subject_entry(case_root, path) for path in subjects]
+    subject_sha256 = fingerprint(case_root, entries)
+    state.update(
+        phase="final-ready",
+        assignment_id=f"CF-{state['episode']:03d}-F",
+        current_subject_sha256=subject_sha256,
+        current_subjects=entries,
+        remediation={
+            "evidence": evidence,
+            "evidence_sha256": file_sha256(evidence_path),
+            "changed_paths": normalized_changed,
+            "direct_regressions": normalized_regressions,
+            "note": note.strip(),
+        },
+    )
+    save(
+        case_root,
+        data,
+        {
+            "type": "conformance-remediation-completed",
+            "episode": state["episode"],
+            "assignment_id": state["assignment_id"],
+            "subject_sha256": subject_sha256,
+            "changed_paths": normalized_changed,
+            "direct_regressions": normalized_regressions,
+        },
+    )
+    return conformance_result(state, review_scope="targeted-remediation")
+
+
+def request_conformance_decision(
+    root: Path,
+    *,
+    evidence: str,
+    reason: str,
+    affected_paths: list[str],
+    note: str,
+) -> dict[str, Any]:
+    """Stop the active episode and request a material user decision."""
+    case_root, data = load(root)
+    state = ensure_conformance_state(data)
+    if state.get("phase") not in {
+        "initial-running",
+        "remediation",
+        "final-ready",
+        "final-running",
+        "terminal",
+    }:
+        raise CaseError(
+            f"Cannot request a conformance decision from {state.get('phase')}"
+        )
+    if reason not in {"scope-expansion", "subject-changed", "manual-stop"}:
+        raise CaseError(
+            "Conformance decision reason must be scope-expansion|subject-changed|manual-stop"
+        )
+    if not note.strip():
+        raise CaseError("Conformance decision request requires a note")
+    normalized_paths = normalize_repository_paths(
+        affected_paths, "decision affected paths"
+    )
+    if reason == "scope-expansion" and not normalized_paths:
+        raise CaseError("Scope expansion requires exact affected paths")
+    evidence_path = case_relative_file(
+        case_root, evidence, "conformance decision request evidence"
+    )
+    previous_phase = state["phase"]
+    state.update(
+        phase="user-decision",
+        terminal_decision="user-decision",
+        terminal_run_id=None,
+        decision_reason={
+            "kind": reason,
+            "from_phase": previous_phase,
+            "affected_paths": normalized_paths,
+            "evidence": evidence,
+            "evidence_sha256": file_sha256(evidence_path),
+            "note": note.strip(),
+            "at": now(),
+        },
+    )
+    save(
+        case_root,
+        data,
+        {
+            "type": "conformance-user-decision-requested",
+            "episode": state["episode"],
+            "from_phase": previous_phase,
+            "reason": reason,
+            "affected_paths": normalized_paths,
+            "evidence": evidence,
+        },
+    )
+    return conformance_result(state)
+
+
+def resume_conformance(
+    root: Path, *, evidence: str, impact: str, note: str
+) -> dict[str, Any]:
+    """Acknowledge a material user decision before a distinct new episode."""
+    case_root, data = load(root)
+    state = ensure_conformance_state(data)
+    if state["phase"] != "user-decision":
+        raise CaseError("Conformance is not awaiting a user decision")
+    if impact not in {"scope", "architecture", "baseline"}:
+        raise CaseError("A new conformance episode requires scope|architecture|baseline impact")
+    if not note.strip():
+        raise CaseError("Conformance resume requires a note")
+    evidence_path = case_relative_file(case_root, evidence, "user decision evidence")
+    verification = data.get("verification")
+    if isinstance(verification, dict):
+        verification.update(
+            attempts=0,
+            status="pending",
+            current_subject_sha256=None,
+            current_subjects=[],
+            current_scope=None,
+        )
+    for gate in (
+        "project_checks",
+        "independent_verification",
+        "project_conformance",
+        "traceability",
+    ):
+        item = data.get("gates", {}).get(gate)
+        if isinstance(item, dict) and item.get("status") == "pass":
+            item.update(
+                status="stale",
+                note=f"user-approved {impact} impact requires affected recheck",
+            )
+    test_lane = data.get("lanes", {}).get("test")
+    if isinstance(test_lane, dict) and test_lane.get("state") == "verified":
+        test_lane.update(
+            state="stale",
+            note=f"user-approved {impact} impact requires affected verification",
+            updated_at=now(),
+        )
+    state.update(
+        phase="idle",
+        backend=None,
+        assignment_id=None,
+        current_subject_sha256=None,
+        current_subjects=[],
+        correction_batches=0,
+        pending_findings=[],
+        finding_evidence=None,
+        affected_paths=[],
+        remediation=None,
+        terminal_decision=None,
+        terminal_run_id=None,
+        decision_reason=None,
+        user_decision_evidence={
+            "ref": evidence,
+            "sha256": file_sha256(evidence_path),
+            "impact": impact,
+            "note": note.strip(),
+        },
+    )
+    save(
+        case_root,
+        data,
+        {
+            "type": "conformance-resumed",
+            "episode": state["episode"],
+            "impact": impact,
+            "evidence": evidence,
+            "note": note.strip(),
+        },
+    )
+    return conformance_result(state)
+
+
 def set_gate(
     root: Path,
     gate: str,
@@ -726,11 +1355,27 @@ def set_gate(
         raise CaseError("not_required requires --note")
     entries = [subject_entry(case_root, path) for path in subjects]
     subject_sha256 = fingerprint(case_root, entries) if entries else ""
+    if status == "pass" and gate == "project_conformance" and data.get(
+        "schema_version", 0
+    ) >= SCHEMA_VERSION:
+        state = ensure_conformance_state(data)
+        if state.get("phase") != "terminal" or state.get("terminal_decision") != "pass":
+            raise CaseError(
+                "project_conformance PASS requires terminal conformance decision=pass"
+            )
+        if state.get("terminal_run_id") != agent_run_id:
+            raise CaseError(
+                "project_conformance PASS must bind the terminal conformance run"
+            )
+        if state.get("current_subject_sha256") != subject_sha256:
+            raise CaseError(
+                "project_conformance PASS subject differs from terminal conformance"
+            )
     run_binding: dict[str, str] | None = None
     if (
         status == "pass"
         and gate in AGENT_BOUND_GATES
-        and data.get("schema_version") == SCHEMA_VERSION
+        and data.get("schema_version", 0) >= 3
     ):
         if not isinstance(agent_run_id, str) or not agent_run_id.strip():
             raise CaseError(f"{gate} PASS requires --agent-run")
@@ -761,9 +1406,175 @@ def set_gate(
     if status == "pass" and gate == "independent_verification" and run_binding:
         data["verification"]["status"] = "passed"
     elif status == "fail" and gate == "independent_verification":
-        data["verification"]["status"] = "failed"
+        scope = data.get("verification", {}).get("current_scope")
+        if isinstance(scope, dict) and scope.get("review_scope") == "targeted-remediation":
+            data["verification"]["status"] = "user-decision"
+            data["lanes"]["test"].update(
+                state="blocked",
+                note="targeted verification still has gating findings",
+                updated_at=now(),
+            )
+            conformance = data.get("conformance")
+            if (
+                isinstance(conformance, dict)
+                and conformance.get("phase") == "remediation"
+            ):
+                conformance.update(
+                    phase="user-decision",
+                    terminal_decision="user-decision",
+                    terminal_run_id=None,
+                    decision_reason={
+                        "kind": "targeted-verification-failed",
+                        "from_phase": "remediation",
+                        "note": note.strip(),
+                        "at": now(),
+                    },
+                )
+        else:
+            data["verification"]["status"] = "failed"
     save(case_root, data, {"type": "gate", "gate": gate, "status": status, "note": note.strip()})
     return data
+
+
+def conformance_state_errors(case_root: Path, data: dict[str, Any]) -> list[str]:
+    if data.get("schema_version", 0) < SCHEMA_VERSION:
+        return []
+    try:
+        state = ensure_conformance_state(data)
+    except CaseError as exc:
+        return [str(exc)]
+    errors: list[str] = []
+    phase = state.get("phase")
+    if phase not in CONFORMANCE_PHASES:
+        errors.append(f"conformance phase is invalid: {phase}")
+    episode = state.get("episode")
+    if not isinstance(episode, int) or isinstance(episode, bool) or episode < 0:
+        errors.append("conformance episode must be a non-negative integer")
+    if phase == "idle":
+        if state.get("backend") is not None or state.get("assignment_id") is not None:
+            errors.append("idle conformance cannot retain an active assignment")
+    else:
+        if state.get("backend") not in CONFORMANCE_BACKENDS:
+            errors.append("active conformance requires native or revmux backend")
+        if not isinstance(state.get("assignment_id"), str):
+            errors.append("active conformance requires assignment_id")
+    if phase in {"initial-running", "final-ready", "final-running", "terminal"}:
+        subject = state.get("current_subject_sha256")
+        entries = state.get("current_subjects")
+        if not isinstance(subject, str) or not agent_ledger.SHA256_RE.fullmatch(subject):
+            errors.append("active conformance requires subject SHA-256")
+        if not isinstance(entries, list) or not entries:
+            errors.append("active conformance requires exact subjects")
+        else:
+            try:
+                if fingerprint(case_root, entries) != subject:
+                    errors.append("conformance subject changed after assignment")
+            except CaseError as exc:
+                errors.append(f"conformance subject: {exc}")
+    if phase in {"remediation", "final-ready", "final-running"}:
+        if state.get("correction_batches") != 1:
+            errors.append("conformance correction batch count must be exactly one")
+        if not state.get("pending_findings"):
+            errors.append("conformance remediation chain has no pending findings")
+        if not state.get("affected_paths"):
+            errors.append("conformance remediation chain has no affected paths")
+    if phase == "user-decision" and state.get("correction_batches") not in {0, 1}:
+        errors.append("user-decision conformance has invalid correction batch count")
+    if phase in {"final-ready", "final-running"}:
+        remediation = state.get("remediation")
+        if not isinstance(remediation, dict):
+            errors.append("final conformance requires remediation binding")
+        else:
+            ref = remediation.get("evidence")
+            expected = remediation.get("evidence_sha256")
+            if not isinstance(ref, str) or not isinstance(expected, str):
+                errors.append("conformance remediation evidence binding is incomplete")
+            else:
+                try:
+                    path = case_relative_file(case_root, ref, "remediation evidence")
+                    if file_sha256(path) != expected:
+                        errors.append("conformance remediation evidence changed")
+                except CaseError as exc:
+                    errors.append(str(exc))
+    attempts = state.get("attempts")
+    if not isinstance(attempts, list):
+        errors.append("conformance attempts must be an array")
+    else:
+        current_episode = [
+            item
+            for item in attempts
+            if isinstance(item, dict) and item.get("episode") == episode
+        ]
+        phases = [item.get("phase") for item in current_episode]
+        if phases.count("initial") > 1 or phases.count("final") > 1:
+            errors.append("conformance episode contains repeated initial or final review")
+        for index, item in enumerate(current_episode, start=1):
+            ref = item.get("evidence")
+            expected = item.get("evidence_sha256")
+            if not isinstance(ref, str) or not isinstance(expected, str):
+                errors.append(f"conformance attempt {index} evidence binding incomplete")
+                continue
+            try:
+                path = case_relative_file(case_root, ref, "conformance evidence")
+                if file_sha256(path) != expected:
+                    errors.append(f"conformance attempt {index} evidence changed")
+            except CaseError as exc:
+                errors.append(str(exc))
+            bindings = item.get("subject_bindings")
+            if not isinstance(bindings, list) or not bindings:
+                errors.append(f"conformance attempt {index} subject binding incomplete")
+            else:
+                for binding in bindings:
+                    if (
+                        not isinstance(binding, dict)
+                        or not isinstance(binding.get("entry"), str)
+                        or not isinstance(binding.get("sha256"), str)
+                        or not agent_ledger.SHA256_RE.fullmatch(binding["sha256"])
+                    ):
+                        errors.append(
+                            f"conformance attempt {index} has invalid subject binding"
+                        )
+                        break
+    if phase == "terminal":
+        if state.get("terminal_decision") != "pass" or not state.get("terminal_run_id"):
+            errors.append("terminal conformance requires pass and terminal run")
+    if phase == "user-decision":
+        if state.get("terminal_decision") != "user-decision":
+            errors.append("user-decision conformance has inconsistent terminal decision")
+        reason = state.get("decision_reason")
+        if not isinstance(reason, dict) or not isinstance(reason.get("kind"), str):
+            errors.append("user-decision conformance requires a decision reason")
+        elif "evidence" in reason:
+            ref = reason.get("evidence")
+            expected = reason.get("evidence_sha256")
+            if not isinstance(ref, str) or not isinstance(expected, str):
+                errors.append("conformance decision request evidence is incomplete")
+            else:
+                try:
+                    path = case_relative_file(
+                        case_root, ref, "conformance decision request evidence"
+                    )
+                    if file_sha256(path) != expected:
+                        errors.append("conformance decision request evidence changed")
+                except CaseError as exc:
+                    errors.append(str(exc))
+    decision_binding = state.get("user_decision_evidence")
+    if decision_binding is not None:
+        if not isinstance(decision_binding, dict):
+            errors.append("conformance user decision evidence must be an object")
+        else:
+            ref = decision_binding.get("ref")
+            expected = decision_binding.get("sha256")
+            if not isinstance(ref, str) or not isinstance(expected, str):
+                errors.append("conformance user decision evidence binding is incomplete")
+            else:
+                try:
+                    path = case_relative_file(case_root, ref, "user decision evidence")
+                    if file_sha256(path) != expected:
+                        errors.append("conformance user decision evidence changed")
+                except CaseError as exc:
+                    errors.append(str(exc))
+    return errors
 
 
 def validate_case(root: Path, final: bool) -> dict[str, Any]:
@@ -838,7 +1649,7 @@ def validate_case(root: Path, final: bool) -> dict[str, Any]:
         if (
             item.get("status") == "pass"
             and gate in AGENT_BOUND_GATES
-            and data.get("schema_version") == SCHEMA_VERSION
+            and data.get("schema_version", 0) >= 3
         ):
             binding = item.get("agent_run")
             if not isinstance(binding, dict) or not isinstance(binding.get("run_id"), str):
@@ -856,7 +1667,7 @@ def validate_case(root: Path, final: bool) -> dict[str, Any]:
                         errors.append(f"{gate}: agent-run binding differs from ledger")
                 except CaseError as exc:
                     errors.append(f"{gate}: {exc}")
-    if data.get("schema_version") == SCHEMA_VERSION:
+    if data.get("schema_version", 0) >= 3:
         try:
             _, ledger = agent_ledger.load(case_root)
             errors.extend(
@@ -869,10 +1680,15 @@ def validate_case(root: Path, final: bool) -> dict[str, Any]:
             )
         except agent_ledger.LedgerError as exc:
             errors.append(f"agent ledger: {exc}")
+    errors.extend(conformance_state_errors(case_root, data))
     if stale:
         errors.append(f"stale gate subjects: {', '.join(stale)}")
     if final:
         intent = data.get("intent")
+        if intent != "test-design" and data.get("schema_version", 0) >= SCHEMA_VERSION:
+            state = ensure_conformance_state(data)
+            if state.get("phase") != "terminal" or state.get("terminal_decision") != "pass":
+                errors.append("conformance is not terminal PASS")
         for lane, item in data["lanes"].items():
             expected = "designed" if intent == "test-design" and lane == "test" else (
                 "verified" if lane == "test" else "implemented"
@@ -910,14 +1726,78 @@ def context_bundle(
         raise CaseError(f"Lane is not active: {lane}")
     if review_backend not in {"native", "revmux"}:
         raise CaseError(f"Unknown review backend: {review_backend}")
+    conformance_context: dict[str, Any] | None = None
+    effective_review_phase = review_phase
+    if role_mode == "conformance" and data.get("schema_version", 0) >= SCHEMA_VERSION:
+        state = ensure_conformance_state(data)
+        if state.get("backend") != review_backend:
+            raise CaseError(
+                "Conformance context backend differs from the active episode"
+            )
+        if state.get("phase") == "initial-running":
+            expected_phase = "initial"
+            review_scope = "full-stage"
+        elif state.get("phase") in {"final-ready", "final-running"}:
+            for gate in ("project_checks", "independent_verification"):
+                if data.get("gates", {}).get(gate, {}).get("status") != "pass":
+                    raise CaseError(
+                        f"Final conformance requires affected {gate} PASS"
+                    )
+            if data.get("lanes", {}).get("test", {}).get("state") != "verified":
+                raise CaseError("Final conformance requires targeted verification")
+            expected_phase = "final"
+            review_scope = "targeted-remediation"
+            if state.get("phase") == "final-ready":
+                state["phase"] = "final-running"
+                save(
+                    case_root,
+                    data,
+                    {
+                        "type": "conformance-final-started",
+                        "episode": state["episode"],
+                        "assignment_id": state["assignment_id"],
+                        "subject_sha256": state["current_subject_sha256"],
+                    },
+                )
+        else:
+            raise CaseError(
+                f"Conformance context is not legal from {state.get('phase')}"
+            )
+        if review_phase is not None and review_phase != expected_phase:
+            raise CaseError(
+                f"Conformance state requires review_phase={expected_phase}"
+            )
+        effective_review_phase = expected_phase
+        conformance_context = {
+            **conformance_result(state, review_scope=review_scope),
+            "finding_ids": [
+                item["id"] for item in state.get("pending_findings", [])
+            ],
+            "finding_evidence": state.get("finding_evidence"),
+            "changed_paths": (
+                state.get("remediation", {}).get("changed_paths", [])
+                if isinstance(state.get("remediation"), dict)
+                else []
+            ),
+            "direct_regressions": (
+                state.get("remediation", {}).get("direct_regressions", [])
+                if isinstance(state.get("remediation"), dict)
+                else []
+            ),
+            "new_findings_policy": (
+                "user-decision"
+                if review_scope == "targeted-remediation"
+                else "classify"
+            ),
+        }
     if review_backend == "revmux":
         if lane != "test":
             raise CaseError("revmux review backend is available only to the test lane")
         if role_mode != "conformance":
             raise CaseError("revmux review backend requires role_mode=conformance")
-        if review_phase not in {"initial", "final"}:
+        if effective_review_phase not in {"initial", "final"}:
             raise CaseError("revmux backend requires review_phase=initial|final")
-    elif review_phase is not None:
+    elif review_phase is not None and conformance_context is None:
         raise CaseError("review_phase is valid only with review_backend=revmux")
     if role_mode is not None:
         if lane != "test" or role_mode not in TEST_ROLE_MODES:
@@ -945,6 +1825,8 @@ def context_bundle(
             for developer in ("backend", "frontend")
             if (case_root / "reports" / f"{developer}.md").is_file()
         )
+        if (case_root / "reports" / "test-design.md").is_file():
+            allowed.append("reports/test-design.md")
     elif (case_root / "reports" / "test-design.md").is_file():
         allowed.append("reports/test-design.md")
     role = "delivery-tester" if lane == "test" else f"delivery-{lane}"
@@ -955,13 +1837,13 @@ def context_bundle(
         "role": role,
         "role_mode": role_mode,
         "review_backend": review_backend,
-        "review_phase": review_phase,
+        "review_phase": effective_review_phase,
         "revmux_profile": (
             "comprehensive"
-            if review_backend == "revmux" and review_phase == "initial"
+            if review_backend == "revmux" and effective_review_phase == "initial"
             else (
                 "final"
-                if review_backend == "revmux" and review_phase == "final"
+                if review_backend == "revmux" and effective_review_phase == "final"
                 else None
             )
         ),
@@ -986,6 +1868,17 @@ def context_bundle(
             "unrelated reports and repository files",
             "external write authority not present in the lane card",
         ],
+        "subject_sha256": (
+            conformance_context.get("subject_sha256")
+            if conformance_context is not None
+            else None
+        ),
+        "convergence": conformance_context,
+        "verification_scope": (
+            data.get("verification", {}).get("current_scope")
+            if role_mode == "verification"
+            else None
+        ),
     }
 
 
@@ -1028,6 +1921,50 @@ def parser() -> argparse.ArgumentParser:
     verify.add_argument("--case-root", type=Path, required=True)
     verify.add_argument("--subject", type=Path, action="append", required=True)
     verify.add_argument("--note", default="")
+    verify.add_argument("--direct-regression", action="append", default=[])
+    verify.add_argument("--finding", action="append", default=[])
+    verify.add_argument("--affected-path", action="append", default=[])
+    conformance = commands.add_parser("begin-conformance")
+    conformance.add_argument("--case-root", type=Path, required=True)
+    conformance.add_argument(
+        "--review-backend", choices=sorted(CONFORMANCE_BACKENDS), required=True
+    )
+    conformance.add_argument("--subject", type=Path, action="append", required=True)
+    conformance.add_argument("--note", default="")
+    disposition = commands.add_parser("record-conformance-review")
+    disposition.add_argument("--case-root", type=Path, required=True)
+    disposition.add_argument("--run-id", required=True)
+    disposition.add_argument(
+        "--decision", choices=("pass", "revise", "user-decision"), required=True
+    )
+    disposition.add_argument("--evidence", required=True)
+    disposition.add_argument("--finding", action="append", default=[])
+    disposition.add_argument("--affected-path", action="append", default=[])
+    disposition.add_argument("--note", default="")
+    remediation = commands.add_parser("complete-conformance-remediation")
+    remediation.add_argument("--case-root", type=Path, required=True)
+    remediation.add_argument("--evidence", required=True)
+    remediation.add_argument("--subject", type=Path, action="append", required=True)
+    remediation.add_argument("--changed-path", action="append", required=True)
+    remediation.add_argument("--direct-regression", action="append", default=[])
+    remediation.add_argument("--note", default="")
+    decision = commands.add_parser("request-conformance-decision")
+    decision.add_argument("--case-root", type=Path, required=True)
+    decision.add_argument("--evidence", required=True)
+    decision.add_argument(
+        "--reason",
+        choices=("scope-expansion", "subject-changed", "manual-stop"),
+        required=True,
+    )
+    decision.add_argument("--affected-path", action="append", default=[])
+    decision.add_argument("--note", required=True)
+    resume = commands.add_parser("resume-conformance")
+    resume.add_argument("--case-root", type=Path, required=True)
+    resume.add_argument("--evidence", required=True)
+    resume.add_argument(
+        "--impact", choices=("scope", "architecture", "baseline"), required=True
+    )
+    resume.add_argument("--note", required=True)
     feedback = commands.add_parser("record-feedback")
     feedback.add_argument("--case-root", type=Path, required=True)
     feedback.add_argument("--gap", action="append", required=True)
@@ -1081,6 +2018,50 @@ def main() -> int:
             result = begin_verification(
                 args.case_root,
                 subjects=args.subject,
+                note=args.note,
+                direct_regressions=args.direct_regression,
+                findings=args.finding,
+                affected_paths=args.affected_path,
+            )
+        elif args.command == "begin-conformance":
+            result = begin_conformance(
+                args.case_root,
+                backend=args.review_backend,
+                subjects=args.subject,
+                note=args.note,
+            )
+        elif args.command == "record-conformance-review":
+            result = record_conformance_review(
+                args.case_root,
+                run_id=args.run_id,
+                decision=args.decision,
+                evidence=args.evidence,
+                findings=args.finding,
+                affected_paths=args.affected_path,
+                note=args.note,
+            )
+        elif args.command == "complete-conformance-remediation":
+            result = complete_conformance_remediation(
+                args.case_root,
+                evidence=args.evidence,
+                subjects=args.subject,
+                changed_paths=args.changed_path,
+                direct_regressions=args.direct_regression,
+                note=args.note,
+            )
+        elif args.command == "request-conformance-decision":
+            result = request_conformance_decision(
+                args.case_root,
+                evidence=args.evidence,
+                reason=args.reason,
+                affected_paths=args.affected_path,
+                note=args.note,
+            )
+        elif args.command == "resume-conformance":
+            result = resume_conformance(
+                args.case_root,
+                evidence=args.evidence,
+                impact=args.impact,
                 note=args.note,
             )
         elif args.command == "record-feedback":

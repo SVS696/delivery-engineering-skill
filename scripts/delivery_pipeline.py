@@ -32,10 +32,20 @@ PUBLIC_FORBIDDEN_MARKERS = tuple(
     "".join(parts) for parts in (("R", "TL"), ("H", "ÆZE"), ("HA", "EZE"))
 )
 HOME_MARKERS = tuple("".join(parts) for parts in (("/", "Users/"),))
+RUNTIME_DIRECTORIES = {".git", ".omc", ".revmux", ".serena", "__pycache__"}
 
 
 class PipelineError(RuntimeError):
     """Profile discovery or package validation failed."""
+
+
+def is_public_package_path(path: Path) -> bool:
+    """Exclude repository and review-tool runtime state from public scans."""
+    try:
+        relative = path.resolve().relative_to(ROOT.resolve())
+    except ValueError:
+        return False
+    return not any(part in RUNTIME_DIRECTORIES for part in relative.parts)
 
 
 @dataclass(frozen=True)
@@ -280,7 +290,7 @@ def validate(project_roots: list[Path] | None = None) -> dict[str, int]:
     for path in ROOT.rglob("*"):
         if not path.is_file() or path.suffix not in public_suffixes:
             continue
-        if "__pycache__" in path.parts:
+        if not is_public_package_path(path):
             continue
         text = path.read_text(encoding="utf-8")
         relative = path.relative_to(ROOT)

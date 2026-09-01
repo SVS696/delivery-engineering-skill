@@ -129,12 +129,16 @@ semantic owner и уже назначенную tester surface. Только е�
 4. Для replacement/cutover проверь наблюдаемую недостижимость superseded пути и
    сохранность только разрешённого compatibility residue; HTTP 404 без проверки
    callers/config/flags/data flow не доказывает removal.
-5. После исправления повтори defect и regression neighborhood новым запуском.
+5. После исправления повтори только exact findings, affected paths и direct
+   regression neighborhood. Для второго assignment передай `--finding`,
+   `--affected-path` и `--direct-regression`; полный повтор запрещён.
 6. После штатной классификации findings добавь verification receipt; не запускай
    отдельный review ради заполнения метрики.
-7. Initial verification плюс два correction passes — предел одной source
-   revision. Затем объедини все accepted spec gaps в один `record-feedback`
-   batch; не возвращай их в Vigers по одному.
+7. Initial verification допускает один finding-bound correction recheck.
+   Дополнительный targeted assignment возможен только для уже принятого
+   conformance correction batch. Неудачный targeted recheck ставит
+   `user-decision`. Все accepted spec gaps одной source revision объедини в один
+   `record-feedback` batch; не возвращай их в Vigers по одному.
 
 **Выход:** `verified`, `failed`, `partial` или `blocked` с evidence.
 
@@ -146,31 +150,44 @@ semantic owner и уже назначенную tester surface. Только е�
 2. Выбери один backend существующего conformance gate. По умолчанию свежий
    tester выполняет native матрицу style/architecture/API/data/UI. При явном
    `review_backend: revmux` он действует только как reviewer-driver по
-   `references/revmux-review-backend.md`, запускает один `comprehensive` и не
-   добавляет собственный semantic pass. Оба backend одновременно запрещены.
-   Его bounded context получай через `delivery_case.py context --lane test
-   --role-mode conformance
-   --review-backend revmux --review-phase initial`; для подтверждения используй
-   новый run и `--review-phase final`.
-   Перед каждым run выполни `revmux_review.py prepare` с exact base/head,
-   resolved Delivery profile и применимыми repository instructions. Только
-   созданные им archived diff и hashed comparison map являются входом panel;
-   общий prose prompt не заменяет этот контракт.
-3. Сверь `REQ/AC → diff → tests → evidence` и отсутствие scope creep.
-4. Сверь implementation-transition report с diff/search/runtime evidence:
+   `references/revmux-review-backend.md`. Оба backend одновременно запрещены.
+3. Открой один episode командой `begin-conformance --review-backend
+   native|revmux --subject ...`. Только после этого получай context через
+   `delivery_case.py context --lane test --role-mode conformance
+   --review-backend <backend> [--review-phase initial]`. Повторный вызов до
+   disposition возвращает тот же frozen assignment; другой initial запрещён.
+4. Для revmux initial запускает `comprehensive`. Перед run выполни
+   `revmux_review.py prepare` с exact base/head, resolved Delivery profile и
+   применимыми repository instructions. Только созданные им archived diff и
+   hashed comparison map являются входом panel; общий prose prompt не заменяет
+   этот контракт.
+5. Сохрани disposition командой `record-conformance-review` с exact tester run,
+   output artifact и решением. Чистый initial PASS терминален и не открывает
+   лишний final. Confirmed/refined `critical|major` требуют `--finding
+   ID=severity` и `--affected-path`; все они образуют один correction batch.
+6. Сверь `REQ/AC → diff → tests → evidence` и отсутствие scope creep. Сверь
+   implementation-transition report с diff/search/runtime evidence:
    authoritative owner единственный, legacy не получил новые правила,
    superseded routes/config/flags/tests/docs удалены либо точно ограничены
    принятой стадией и retirement trigger.
-5. Для revmux объедини confirmed/refined `critical|major` initial report в
-   один correction batch. `minor` не запускают исправление. После batch повтори
-   affected project checks и independent verification, затем новый
-   tester-driver запускает ровно профиль `final`. Оставшийся/new gating finding
-   завершает review case как failed/user-decision без второго автоматического цикла.
-6. Если после review изменился subject, затронутые gates становятся stale.
-7. Свяжи conformance PASS с отдельным свежим tester run и exact output artifact.
-   Для revmux это output reviewer-driver с hashes final report/manifest и
-   telemetry; initial run остаётся adoption evidence, но не закрывает gate.
-8. Выполни `delivery_case.py validate --final`; команда сначала сохраняет
+7. После accepted batch повтори только affected project checks и independent
+   verification. Затем `complete-conformance-remediation` связывает remediation
+   evidence, corrected subject, declared changed paths и direct regressions.
+   Changed path вне initial affected scope блокируется. Зафиксируй расширение
+   через `request-conformance-decision --reason scope-expansion --evidence ...
+   --affected-path ...`; только `resume-conformance` с material user evidence
+   может разрешить новый episode и affected rechecks.
+8. Новый tester получает `final` context. Для revmux `prepare` сравнивает
+   pre/post-correction commits, требует точного совпадения actual diff с
+   `changed_paths` и направляет panel только на finding batch, correction delta и
+   direct regressions. Остаточный или новый `critical|major` ставит
+   `user-decision`; второй automatic correction запрещён.
+   Изменение frozen subject в любом active/terminal состоянии также переводит
+   episode в `user-decision`; оно не является разрешением на новый full review.
+9. Свяжи conformance PASS с terminal tester run и тем exact subject/output
+   artifact. Если terminal PASS получен на чистом initial, gate связывается с
+   initial run; после correction — с final run.
+10. Выполни `delivery_case.py validate --final`; команда сначала сохраняет
    effective stale state.
 
 **Выход:** локальная поставка готова к следующему внешнему gate.
